@@ -1,491 +1,213 @@
 --- @since 25.2.7
 
+local PackageName = "Preference by location"
+
 local M = {}
 
-local function permission(file)
-	local h = file
-	if not h then
-		return ""
-	end
+---@alias LINEMODE
+---|"none"
+---|"size"
+---|"btime"
+---|"mtime"
+---|"permissions"
+---|"owner"
 
-	local perm = h.cha:perm()
-	if not perm then
-		return ""
-	end
+---@alias SORT_BY
+---|"none"
+---|"mtime"
+---|"btime"
+---|"extension"
+---|"alphabetical"
+---|"natural"
+---|"size"
+---|"random",
 
-	local spans = ""
-	for i = 1, #perm do
-		local c = perm:sub(i, i)
-		spans = spans .. c
-	end
-	return spans
+local function success(s, ...)
+	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 5, level = "info" })
 end
 
-local function link_count(file)
-	local h = file
-	if h == nil or ya.target_family() ~= "unix" then
-		return ""
-	end
-
-	return h.cha.nlink
+local function fail(s, ...)
+	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 5, level = "error" })
 end
 
-local function owner_group(file)
-	local h = file
-	if h == nil or ya.target_family() ~= "unix" then
-		return ""
-	end
-	return (ya.user_name(h.cha.uid) or tostring(h.cha.uid)) .. "/" .. (ya.group_name(h.cha.gid) or tostring(h.cha.gid))
-end
-
-local file_size_and_folder_childs = function(file)
-	local h = file
-	if not h or h.cha.is_link then
-		return ""
-	end
-
-	return h.cha.len and ya.readable_size(h.cha.len) or ""
-end
-
---- get file timestamp
----@param file any
----@param type "mtime" | "atime" | "btime"
----@return any
-local function fileTimestamp(file, type)
-	local h = file
-	if not h or h.cha.is_link then
-		return ""
-	end
-	local time = math.floor(h.cha[type] or 0)
-	if time == 0 then
-		return ""
-	else
-		return os.date("%Y-%m-%d %H:%M", time)
-	end
-end
-
--- Function to split a string by spaces (considering multiple spaces as one delimiter)
-local function split_by_whitespace(input)
-	local result = {}
-	for word in string.gmatch(input, "%S+") do
-		table.insert(result, word)
-	end
-	return result
-end
-
-local function get_filesystem_extra(file)
-	local result = {
-		filesystem = "",
-		device = "",
-		type = "",
-		used_space = "",
-		avail_space = "",
-		total_space = "",
-		used_space_percent = "",
-		avail_space_percent = "",
-		error = nil,
-	}
-	local h = file
-	local file_url = tostring(h.url)
-	if not h or ya.target_family() ~= "unix" then
-		return result
-	end
-
-	local output, _ = Command("tail")
-		:args({ "-n", "-1" })
-		:stdin(Command("df"):args({ "-P", "-T", "-h", file_url }):stdout(Command.PIPED):spawn():take_stdout())
-		:stdout(Command.PIPED)
-		:output()
-
-	if output then
-		-- Splitting the data
-		local parts = split_by_whitespace(output.stdout)
-
-		-- Display the result
-		for i, part in ipairs(parts) do
-			if i == 1 then
-				result.filesystem = part
-			elseif i == 2 then
-				result.device = part
-			elseif i == 3 then
-				result.total_space = part
-			elseif i == 4 then
-				result.used_space = part
-			elseif i == 5 then
-				result.avail_space = part
-			elseif i == 6 then
-				result.used_space_percent = part
-				result.avail_space_percent = 100 - tonumber((string.match(part, "%d+") or "0"))
-			elseif i == 7 then
-				result.type = part
-			end
-		end
-	else
-		result.error = "tail, df are installed?"
-	end
-	return result
-end
-
-local function attributes(file)
-	local h = file
-	local file_url = tostring(h.url)
-	if not h or ya.target_family() ~= "unix" then
-		return ""
-	end
-
-	local output, _ = Command("lsattr"):args({ "-d", file_url }):stdout(Command.PIPED):output()
-
-	if output then
-		-- Splitting the data
-		local parts = split_by_whitespace(output.stdout)
-
-		-- Display the result
-		for i, part in ipairs(parts) do
-			if i == 1 then
-				return part
-			end
-		end
-		return ""
-	else
-		return "lsattr is installed?"
-	end
-end
-
----shorten string
----@param _s string string
----@param _t string tail
----@param _w number max characters
----@return string
-local shorten = function(_s, _t, _w)
-	local s = _s or utf8.len(_s)
-	local t = _t or ""
-	local ellipsis = "…" .. t
-	local w = _w < utf8.len(ellipsis) and utf8.len(ellipsis) or _w
-	local n_ellipsis = utf8.len(ellipsis) or 0
-	if utf8.len(s) > w then
-		return s:sub(1, (utf8.offset(s, w - n_ellipsis + 1) or 2) - 1) .. ellipsis
-	end
-	return s
-end
-
-local is_supported_table = type(ui.Table) ~= "nil" and type(ui.Row) ~= "nil"
-
-local styles = {
-	header = ui.Style():fg("green"),
-	row_label = ui.Style():fg("reset"),
-	row_value = ui.Style():fg("blue"),
-	row_value_spot_hovered = ui.Style():fg("blue"):reverse(),
+local STATE_KEY = {
+	loaded = "loaded",
+	disabled = "disabled",
+	save_path = "save_path",
+	prefs = "prefs",
 }
 
-function M:render_table(job, opts)
-	local filesystem_extra = get_filesystem_extra(job.file)
-	local prefix = "  "
-	local label_lines, value_lines, rows = {}, {}, {}
-	local label_max_length = 15
-	local file_name_extension = job.file.cha.is_dir and "…" or ("." .. (job.file.url.ext(job.file.url) or ""))
+local set_state = ya.sync(function(state, key, value)
+	state[key] = value
+end)
 
-	local row = function(key, value)
-		local h = type(value) == "table" and #value or 1
-		rows[#rows + 1] = ui.Row({ ui.Line(key):style(styles.row_label), ui.Line(value):style(styles.row_value) })
-			:height(h)
+local get_state = ya.sync(function(state, key)
+	return state[key]
+end)
+
+local function escapeStringPattern(str)
+	return str:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+end
+
+--- @return table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean }>
+local read_prefs_from_saved_file = function(pref_path)
+	local file = io.open(pref_path, "r")
+	if file == nil then
+		return {}
 	end
+	local prefs_encoded = file:read("*all")
+	file:close()
+	return ya.json_decode(prefs_encoded)
+end
 
-	local file_name = shorten(
-		job.file.name,
-		file_name_extension,
-		math.floor(job.area.w - label_max_length - utf8.len(file_name_extension))
-	)
-	local location =
-		shorten(tostring(job.file.url:parent()), "", math.floor(job.area.w - label_max_length - utf8.len(prefix)))
-	local filesystem_error = filesystem_extra.error
-			and shorten(filesystem_extra.error, "", math.floor(job.area.w - label_max_length - utf8.len(prefix)))
-		or nil
-	local filesystem =
-		shorten(filesystem_extra.filesystem, "", math.floor(job.area.w - label_max_length - utf8.len(prefix)))
+local current_dir = ya.sync(function()
+	return tostring(cx.active.current.cwd)
+end)
 
-	if not is_supported_table then
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span("Metadata:"),
-			}):style(styles.header)
-		)
-		table.insert(
-			value_lines,
-			ui.Line({
-				ui.Span(""),
-			})
-		)
+local current_pref = ya.sync(function()
+	return {
+		sort = {
+			cx.active.pref.sort_by,
+			reverse = cx.active.pref.sort_reverse,
+			dir_first = cx.active.pref.sort_dir_first,
+			translit = cx.active.pref.sort_translit,
+		},
+		linemode = cx.active.pref.linemode,
+		show_hidden = cx.active.pref.show_hidden,
+	}
+end)
 
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("File:"),
-			}):style(styles.row_label)
-		)
-		table.insert(
-			value_lines,
-			ui.Line({
-				ui.Span(file_name),
-			}):style(styles.row_value)
-		)
+-- Save preferences to files, Exclude predefined preferences in setup({})
+local save_prefs = function()
+	local cwd = current_dir()
+	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
+	local prefs = get_state(STATE_KEY.prefs)
+	local prefs_predefined = {}
+	-- do not save predefined prefs
+	-- loop backward to prevent logical issue with shifting element + index number in array
+	for idx = #prefs, 1, -1 do
+		if prefs[idx].is_predefined then
+			table.insert(prefs_predefined, 1, prefs[idx])
+		end
 
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Mimetype: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(job._mime or job.mime)):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Location: "),
-			}):style(styles.row_label)
-		)
-		table.insert(
-			value_lines,
-			ui.Line({
-				ui.Span(location),
-			}):style(styles.row_value)
-		)
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Mode: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(permission(job.file)):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Attributes: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(attributes(job.file))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Links: "),
-			}):style(styles.row_label)
-		)
-		table.insert(
-			value_lines,
-			ui.Line({
-				ui.Span(tostring(link_count(job.file))),
-			}):style(styles.row_value)
-		)
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Owner: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(owner_group(job.file))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Size: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(file_size_and_folder_childs(job.file))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Created: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(fileTimestamp(job.file, "btime"))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Modified: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(fileTimestamp(job.file, "mtime"))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Accessed: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(fileTimestamp(job.file, "atime"))):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Filesystem: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(filesystem_error or filesystem)):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Device: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(filesystem_error or filesystem_extra.device)):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Type: "),
-			}):style(styles.row_label)
-		)
-		table.insert(value_lines, ui.Line(ui.Span(filesystem_error or filesystem_extra.type)):style(styles.row_value))
-
-		table.insert(
-			label_lines,
-			ui.Line({
-				ui.Span(prefix),
-				ui.Span("Free space: "),
-			}):style(styles.row_label)
-		)
-		table.insert(
-			value_lines,
-			ui.Line(
-				ui.Span(
-					filesystem_extra.error
-						or (
-							filesystem_extra.avail_space
-							.. " / "
-							.. filesystem_extra.total_space
-							.. " ("
-							.. filesystem_extra.avail_space_percent
-							.. "%)"
-						)
-				)
-			):style(styles.row_value)
-		)
-	else
-		rows[#rows + 1] = ui.Row({ "Metadata", "" }):style(styles.header)
-		row(prefix .. "File:", file_name)
-		row(prefix .. "Mimetype:", job.mime)
-		row(prefix .. "Location:", location)
-		row(prefix .. "Mode:", permission(job.file))
-		row(prefix .. "Attributes:", attributes(job.file))
-		row(prefix .. "Links:", tostring(link_count(job.file)))
-		row(prefix .. "Owner:", owner_group(job.file))
-		row(prefix .. "Size:", file_size_and_folder_childs(job.file))
-		row(prefix .. "Created:", fileTimestamp(job.file, "btime"))
-		row(prefix .. "Modified:", fileTimestamp(job.file, "mtime"))
-		row(prefix .. "Accessed:", fileTimestamp(job.file, "atime"))
-		row(prefix .. "Filesystem:", filesystem_error or filesystem)
-		row(prefix .. "Device:", filesystem_error or filesystem_extra.device)
-		row(prefix .. "Type:", filesystem_error or filesystem_extra.type)
-		row(
-			prefix .. "Free space:",
-			filesystem_error
-				or (
-					(
-							filesystem_extra.avail_space
-							and filesystem_extra.total_space
-							and filesystem_extra.avail_space_percent
-						)
-						and (filesystem_extra.avail_space .. " / " .. filesystem_extra.total_space .. " (" .. filesystem_extra.avail_space_percent .. "%)")
-					or ""
-				)
-		)
-		if opts and opts.show_plugins_section and PLUGIN then
-			local spotter = PLUGIN.spotter(job.file.url, job.mime)
-			local previewer = PLUGIN.previewer(job.file.url, job.mime)
-			local fetchers = PLUGIN.fetchers(job.file, job.mime)
-			local preloaders = PLUGIN.preloaders(job.file.url, job.mime)
-
-			for i, v in ipairs(fetchers) do
-				fetchers[i] = v.cmd
-			end
-			for i, v in ipairs(preloaders) do
-				preloaders[i] = v.cmd
-			end
-
-			rows[#rows + 1] = ui.Row({ { "", "Plugins" }, "" }):height(2):style(styles.header)
-			row(prefix .. "Spotter:", spotter and spotter.cmd or "")
-			row(prefix .. "Previewer:", previewer and previewer.cmd or "")
-			row(prefix .. "Fetchers:", #fetchers ~= 0 and fetchers or "")
-			row(prefix .. "Preloaders:", #preloaders ~= 0 and preloaders or "")
+		if prefs[idx].is_predefined or prefs[idx].location == escapeStringPattern(cwd) then
+			table.remove(prefs, idx)
 		end
 	end
 
-	if not is_supported_table then
-		local areas = ui.Layout()
-			:direction(ui.Layout.HORIZONTAL)
-			:constraints({ ui.Constraint.Length(label_max_length), ui.Constraint.Fill(1) })
-			:split(job.area)
-		local label_area = areas[1]
-		local value_area = areas[2]
-		return {
-			ui.Text(label_lines):area(label_area):align(ui.Text.LEFT):wrap(ui.Text.WRAP_NO),
-			ui.Text(value_lines):area(value_area):align(ui.Text.LEFT):wrap(ui.Text.WRAP_NO),
-		}
-	else
-		return {
-			ui.Table(rows):area(job.area):row(1):col(1):col_style(styles.row_value):widths({
-				ui.Constraint.Length(label_max_length),
-				ui.Constraint.Fill(1),
-			}),
-		}
+	local pref = current_pref()
+	table.insert(prefs, 1, {
+		location = escapeStringPattern(cwd),
+		sort = pref.sort,
+		linemode = pref.linemode,
+		show_hidden = pref.show_hidden,
+	})
+	local save_path = Url(get_state(STATE_KEY.save_path))
+	-- create parent directories
+	local save_path_created, err_create = fs.create("dir_all", save_path:parent())
+	if err_create then
+		fail("Can't create folder to file: %s", tostring(save_path:parent()))
 	end
+
+	-- save prefs to file
+	if save_path_created then
+		local _, err_write = fs.write(save_path, ya.json_encode(prefs))
+		if err_write then
+			fail("Can't write to file:  %s", tostring(save_path))
+		end
+	end
+
+	-- restore predefined preferences
+	for _, p in ipairs(prefs_predefined) do
+		table.insert(prefs, p)
+	end
+	set_state(STATE_KEY.prefs, prefs)
 end
 
-function M:peek(job)
-	local start, cache = os.clock(), ya.file_cache(job)
-	if not cache or not self:preload(job) then
-		return 1
+-- This function trigger everytime user change cwd
+local change_pref = ya.sync(function()
+	if get_state(STATE_KEY.disabled) then
+		return
 	end
-	ya.sleep(math.max(0, PREVIEW.image_delay / 1000 + start - os.clock()))
-	ya.preview_widgets(job, self:render_table(job))
+	local prefs = get_state(STATE_KEY.prefs)
+	local cwd = cx.active.current.cwd
+	-- change pref based on location
+	for _, pref in ipairs(prefs) do
+		if string.match(tostring(cwd), pref.location .. "$") then
+			-- sort
+			local sort_pref = pref.sort
+			if sort_pref then
+				ya.dict_merge(sort_pref, { tab = cx.active.id })
+				ya.manager_emit("sort", sort_pref)
+			end
+
+			-- linemode
+			local linemode_pref = pref.linemode
+			if linemode_pref then
+				ya.manager_emit("linemode", { linemode_pref, tab = cx.active.id })
+			end
+
+			--show_hidden
+			local show_hidden_pref = pref.show_hidden
+			if show_hidden_pref ~= nil then
+				ya.manager_emit("hidden", { show_hidden_pref and "show" or "hide", tab = cx.active.id })
+			end
+			return
+		end
+	end
+end)
+
+-- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
+--- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean }
+function M:setup(opts)
+	local prefs = type(opts.prefs) == "table" and opts.prefs or {}
+	if type(opts) == "table" then
+		set_state(STATE_KEY.disabled, opts.disabled)
+		local save_path = opts.save_path
+			or (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
+			or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
+		set_state(STATE_KEY.save_path, save_path)
+
+		-- flag to prevent these predefined prefs is saved to file
+		for _, pref in ipairs(prefs) do
+			pref.is_predefined = true
+		end
+		-- restore saved prefs from file
+		local saved_prefs = read_prefs_from_saved_file(get_state(STATE_KEY.save_path))
+		for idx = #saved_prefs, 1, -1 do
+			table.insert(prefs, 1, saved_prefs[idx])
+		end
+		-- set_state(STATE_KEY.prefs, prefs)
+	end
+	-- dds subscribe on changed directory
+	ps.sub("cd", function(_)
+		if not get_state(STATE_KEY.loaded) then
+			set_state(STATE_KEY.loaded, true)
+			-- Add fallback location from yazi.toml
+			local current_location_pref = current_pref()
+			table.insert(prefs, {
+				location = ".*",
+				sort = current_location_pref.sort,
+				linemode = current_location_pref.linemode,
+				show_hidden = current_location_pref.show_hidden,
+				is_predefined = true,
+			})
+			set_state(STATE_KEY.prefs, prefs)
+		end
+		change_pref()
+	end)
 end
 
-function M:seek(job)
-	local h = cx.active.current.hovered
-	if h and h.url == job.file.url then
-		local step = math.floor(job.units * job.area.h / 10)
-		ya.manager_emit("peek", {
-			tostring(math.max(0, cx.active.preview.skip + step)),
-			only_if = tostring(job.file.url),
-		})
+function M:entry(job)
+	local action = job.args[1]
+	set_state(STATE_KEY.disabled, action == "disable")
+	if get_state(STATE_KEY.disabled) then
+		return
 	end
-end
 
-function M:preload(job)
-	local cache = ya.file_cache(job)
-	if not cache or fs.cha(cache) then
-		return true
+	if action == "save" then
+		save_prefs()
 	end
-	return true
-end
-
-function M:spot(job)
-	job.area = ui.Pos({ "center", w = 80, h = 25 })
-	ya.spot_table(
-		job,
-		self:render_table(job, { show_plugins_section = true })[1]:cell_style(styles.row_value_spot_hovered)
-	)
 end
 
 return M

@@ -1,105 +1,149 @@
-# file-extra-metadata
+# pref-by-location
 
 <!--toc:start-->
 
-- [file-extra-metadata](#file-extra-metadata)
-  - [Preview](#preview)
-    - [Before:](#before)
-    - [After:](#after)
+- [pref-by-location](#pref-by-location)
   - [Requirements](#requirements)
   - [Installation](#installation)
-  - [For developer](#for-developer)
+    - [Add setup function in `yazi/init.lua`.](#add-setup-function-in-yaziinitlua)
+    - [Add `keymap.toml`](#add-keymaptoml)
+  - [For developers](#for-developers)
   <!--toc:end-->
 
-This is a Yazi plugin that replaces the default file previewer and spotter with extra information.
+This is a Yazi plugin that save these preferences by location:
+
+- [linemode](https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode)
+- [sort](https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by)
+- [show_hidden](https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden)
 
 > [!IMPORTANT]
 > Minimum version: yazi v25.2.7
 
-## Preview
-
-### Before:
-
-- Previewer
-
-  ![Before preview](statics/2024-11-17-12-06-24.png)
-
-- Spotter
-
-  ![Before spot](statics/2024-11-21-04-19-01.png)
-
-### After:
-
-- Previewer
-
-![After previewer](statics/2024-11-21-05-27-48.png)
-
-- Spotter
-
-![After spotter](statics/2024-11-21-05-29-50.png)
-
 ## Requirements
 
 - [yazi >= 25.2.7](https://github.com/sxyazi/yazi)
-- Tested on Linux. For MacOS, Windows: some fields will shows empty values.
+- Tested on Linux.
 
 ## Installation
 
 Install the plugin:
 
 ```sh
-ya pack -a boydaihungst/file-extra-metadata
+ya pack -a boydaihungst/pref-by-location
 ```
 
-Add spotter keybind, makes sure not conflict with other `<Tab>` keybind in
-`manager` section:
+### Add setup function in `yazi/init.lua`.
+
+Prefs is optional but the setup function is required.
+
+```lua
+require("pref-by-location"):setup({
+  -- Disable this plugin completely.
+  -- disabled = false -- true|false (Optional)
+
+  -- You can backup/restore this file. But don't use same file in the different OS.
+  -- save_path =  -- full path to save file (Optional)
+  --       - Linux/MacOS: os.getenv("HOME") .. "/.config/yazi/pref-by-location"
+  --       - Windows: os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location"
+
+  -- You don't have to set this. Just use keymaps work just file
+  prefs = { -- (Optional)
+    -- location: String | Lua pattern (Required)
+    --   - Support literals full path, lua pattern (string.match pattern): https://www.lua.org/pil/20.2.html
+    --     And don't put ($) sign at the end of the location
+    --   - If you want to use special characters (such as . * ? + [ ] ( ) ^ $ %) in "location"
+    --     you need to escape them with a percent sign (%).
+    --     Example: "/home/test/Hello (Lua) [world]" => { location = "/home/test/Hello %(Lua%) %[world%]", ....}
+
+    -- sort: {} (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by
+    --   - extension: "none"|"mtime"|"btime"|"extension"|"alphabetical"|"natural"|"size"|"random",
+    --   - reverse: true|false
+    --   - dir_first: true|false
+    --   - translit: true|false
+
+    -- linemode: "none" |"size" |"btime" |"mtime" |"permissions" |"owner" (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode
+    --   - Custom linemode also work. See the example below
+
+    -- show_hidden: true|false (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden
+
+    -- Some examples:
+    -- Match any folder which has path start with "/mnt/remote/". Example: /mnt/remote/child/child2
+    { location = "^/mnt/remote/.*", sort = { "extension", reverse = false, dir_first = true } },
+    -- Match any folder with name "Downloads"
+    { location = ".*/Downloads", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
+    -- Match exact folder with name "/home/test/Videos"
+    { location = "/home/test/Videos", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
+
+    -- show_hidden for any folder with name "secret"
+    {
+	    location = ".*/secret",
+	    sort = { "natural", reverse = false, dir_first = true },
+	    linemode = "size",
+	    show_hidden = true,
+    },
+
+    -- Custom linemode also work
+    {
+	    location = ".*/abc",
+	    linemode = "size_and_mtime",
+    },
+  },
+})
+```
+
+### Add `keymap.toml`
+
+> [!IMPORTANT]
+> Always run `"plugin pref-by-location -- save"` after changed hidden, linemode, sort
+
+Since Yazi selects the first matching key to run, `prepend_keymap` always has a higher priority than default.
+Or you can use `keymap` to replace all other keys
 
 ```toml
 [manager]
-keymap = [
-  # ...
-  # Spotting
-  { on = "<Tab>", run = "spot", desc = "Spot hovered file" },
+  prepend_keymap = [
+    # Show Hidden
+    { on = ".", run = [ "hidden toggle", "plugin pref-by-location -- save" ], desc = "Toggle the visibility of hidden files" },
+
+    # Linemode
+    { on = [ "m", "s" ], run = [ "linemode size", "plugin pref-by-location -- save" ],        desc = "Linemode: size" },
+    { on = [ "m", "p" ], run = [ "linemode permissions", "plugin pref-by-location -- save" ], desc = "Linemode: permissions" },
+    { on = [ "m", "b" ], run = [ "linemode btime", "plugin pref-by-location -- save" ],       desc = "Linemode: btime" },
+    { on = [ "m", "m" ], run = [ "linemode mtime", "plugin pref-by-location -- save" ],       desc = "Linemode: mtime" },
+    { on = [ "m", "o" ], run = [ "linemode owner", "plugin pref-by-location -- save" ],       desc = "Linemode: owner" },
+    { on = [ "m", "n" ], run = [ "linemode none", "plugin pref-by-location -- save" ],        desc = "Linemode: none" },
+    # Custom size_and_mtime linemode
+    # { on = [ "u", "S" ], run = [ "linemode size_and_mtime", "plugin pref-by-location -- save" ], desc = "Show Size and Modified time" },
+
+    # Sorting
+    # { on = [ ",", "d" ], run = "plugin pref-by-location -- disable",                                               desc = "Disable this plugin" },
+    { on = [ ",", "m" ], run = [ "sort mtime --reverse=no", "linemode mtime", "plugin pref-by-location -- save" ], desc = "Sort by modified time" },
+    { on = [ ",", "M" ], run = [ "sort mtime --reverse", "linemode mtime", "plugin pref-by-location -- save" ],    desc = "Sort by modified time (reverse)" },
+    { on = [ ",", "b" ], run = [ "sort btime --reverse=no", "linemode btime", "plugin pref-by-location -- save" ], desc = "Sort by birth time" },
+    { on = [ ",", "B" ], run = [ "sort btime --reverse", "linemode btime", "plugin pref-by-location -- save" ],    desc = "Sort by birth time (reverse)" },
+    { on = [ ",", "e" ], run = [ "sort extension --reverse=no", "plugin pref-by-location -- save" ],               desc = "Sort by extension" },
+    { on = [ ",", "E" ], run = [ "sort extension --reverse", "plugin pref-by-location -- save" ],                  desc = "Sort by extension (reverse)" },
+    { on = [ ",", "a" ], run = [ "sort alphabetical --reverse=no", "plugin pref-by-location -- save" ],            desc = "Sort alphabetically" },
+    { on = [ ",", "A" ], run = [ "sort alphabetical --reverse", "plugin pref-by-location -- save" ],               desc = "Sort alphabetically (reverse)" },
+    { on = [ ",", "n" ], run = [ "sort natural --reverse=no", "plugin pref-by-location -- save" ],                 desc = "Sort naturally" },
+    { on = [ ",", "N" ], run = [ "sort natural --reverse", "plugin pref-by-location -- save" ],                    desc = "Sort naturally (reverse)" },
+    { on = [ ",", "s" ], run = [ "sort size --reverse=no", "linemode size", "plugin pref-by-location -- save" ],   desc = "Sort by size" },
+    { on = [ ",", "S" ], run = [ "sort size --reverse", "linemode size", "plugin pref-by-location -- save" ],      desc = "Sort by size (reverse)" },
+    { on = [ ",", "r" ], run = [ "sort random --reverse=no", "plugin pref-by-location -- save" ],                  desc = "Sort randomly" },
 ]
 ```
 
-Create `~/.config/yazi/yazi.toml` and add:
+## For developers
 
-```toml
-[plugin]
-  append_previewers = [
-    { name = "*", run = "file-extra-metadata" },
-  ]
-  # yazi v0.4 after 21/11/2024
-  # Setup keybind for spotter: https://github.com/sxyazi/yazi/pull/1802
-  append_spotters = [
-    { name = "*", run = "file-extra-metadata" },
-  ]
-```
-
-or
-
-```toml
-[plugin]
-  previewers = [
-    # ... the rest
-    # disable default file plugin { name = "*", run = "file" },
-    { name = "*", run = "file-extra-metadata" },
-  ]
-  # yazi v0.4 after 21/11/2024
-  # Setup keybind for spotter: https://github.com/sxyazi/yazi/pull/1802
-  spotters = [
-    # ... the rest
-    # Fallback
-    # { name = "*", run = "file" },
-    { name = "*", run = "file-extra-metadata" },
-  ]
-```
-
-## For developer
-
-If you want to compile this with other spotter/previewer:
+Trigger this plugin programmatically:
 
 ```lua
-require("file-extra-metadata"):render_table(job, { show_plugins_section = true })
+-- In your plugin:
+local pref_by_location = require("pref-by-location")
+ya.manager_emit("plugin", {
+  pref_by_location._id,
+  args = ya.quote("save", true),
+})
+
+
 ```
