@@ -50,7 +50,7 @@ require("pref-by-location"):setup({
   prefs = { -- (Optional)
     -- location: String | Lua pattern (Required)
     --   - Support literals full path, lua pattern (string.match pattern): https://www.lua.org/pil/20.2.html
-    --     And don't put ($) sign at the end of the location
+    --     And don't put ($) sign at the end of the location. %$ is ok.
     --   - If you want to use special characters (such as . * ? + [ ] ( ) ^ $ %) in "location"
     --     you need to escape them with a percent sign (%).
     --     Example: "/home/test/Hello (Lua) [world]" => { location = "/home/test/Hello %(Lua%) %[world%]", ....}
@@ -87,8 +87,9 @@ require("pref-by-location"):setup({
 	    location = ".*/abc",
 	    linemode = "size_and_mtime",
     },
-    -- DO NOT ADD location = "*". Which currently use your yazi.toml config as fallback.
-    -- That mean if non of the saved perferences is matched, then it will use your config from yazi.toml
+    -- DO NOT ADD location = ".*". Which currently use your yazi.toml config as fallback.
+    -- That mean if none of the saved perferences is matched, then it will use your config from yazi.toml.
+    -- So change linemode, show_hidden, sort_xyz in yazi.toml instead.
   },
 })
 ```
