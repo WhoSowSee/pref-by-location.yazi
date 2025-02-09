@@ -87,6 +87,8 @@ require("pref-by-location"):setup({
 	    location = ".*/abc",
 	    linemode = "size_and_mtime",
     },
+    -- DO NOT ADD location = "*". Which currently use your yazi.toml config as fallback.
+    -- That mean if non of the saved perferences is matched, then it will use your config from yazi.toml
   },
 })
 ```
