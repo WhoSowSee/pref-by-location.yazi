@@ -17,7 +17,8 @@ This is a Yazi plugin that save these preferences by location:
 - [show_hidden](https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden)
 
 > [!IMPORTANT]
-> Minimum version: yazi v25.2.7
+> Minimum version: yazi v25.2.7.
+>
 > This plugin will conflict with folder-rules. You should remove it.
 > https://yazi-rs.github.io/docs/tips#folder-rules
 
@@ -48,7 +49,7 @@ require("pref-by-location"):setup({
   --       - Linux/MacOS: os.getenv("HOME") .. "/.config/yazi/pref-by-location"
   --       - Windows: os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location"
 
-  -- You don't have to set this. Just use keymaps work just file
+  -- You don't have to set "prefs". Just use keymaps below work just fine
   prefs = { -- (Optional)
     -- location: String | Lua pattern (Required)
     --   - Support literals full path, lua pattern (string.match pattern): https://www.lua.org/pil/20.2.html
@@ -58,11 +59,11 @@ require("pref-by-location"):setup({
     --     Example: "/home/test/Hello (Lua) [world]" => { location = "/home/test/Hello %(Lua%) %[world%]", ....}
 
     -- sort: {} (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by
-    --   - extension: "none"|"mtime"|"btime"|"extension"|"alphabetical"|"natural"|"size"|"random",
-    --   - reverse: true|false
-    --   - dir_first: true|false
-    --   - translit: true|false
-    --   - sensitive: true|false
+    --   - extension: "none"|"mtime"|"btime"|"extension"|"alphabetical"|"natural"|"size"|"random", (Optional)
+    --   - reverse: true|false (Optional)
+    --   - dir_first: true|false (Optional)
+    --   - translit: true|false (Optional)
+    --   - sensitive: true|false (Optional)
 
     -- linemode: "none" |"size" |"btime" |"mtime" |"permissions" |"owner" (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode
     --   - Custom linemode also work. See the example below
@@ -105,10 +106,16 @@ require("pref-by-location"):setup({
 Since Yazi selects the first matching key to run, `prepend_keymap` always has a higher priority than default.
 Or you can use `keymap` to replace all other keys
 
+More information about these commands and their arguments:
+
+- [linemode](https://yazi-rs.github.io/docs/configuration/keymap#manager.linemode)
+- [sort](https://yazi-rs.github.io/docs/configuration/keymap#manager.sort)
+- [hidden](https://yazi-rs.github.io/docs/configuration/keymap#manager.hidden)
+
 ```toml
 [manager]
   prepend_keymap = [
-    # Show Hidden
+    # Toggle Hidden
     { on = ".", run = [ "hidden toggle", "plugin pref-by-location -- save" ], desc = "Toggle the visibility of hidden files" },
 
     # Linemode
@@ -123,6 +130,8 @@ Or you can use `keymap` to replace all other keys
 
     # Sorting
     # { on = [ ",", "d" ], run = "plugin pref-by-location -- disable",                                               desc = "Disable this plugin" },
+    # This will reset any rule of this cwd then use predefined rules in setup funtion in init.lua or fallback to default settings from yazi.toml
+    { on = [ ",", "R" ], run = [ "plugin pref-by-location -- reset" ],                                                 desc = "Reset preference of cwd" },
     { on = [ ",", "m" ], run = [ "sort mtime --reverse=no", "linemode mtime", "plugin pref-by-location -- save" ], desc = "Sort by modified time" },
     { on = [ ",", "M" ], run = [ "sort mtime --reverse", "linemode mtime", "plugin pref-by-location -- save" ],    desc = "Sort by modified time (reverse)" },
     { on = [ ",", "b" ], run = [ "sort btime --reverse=no", "linemode btime", "plugin pref-by-location -- save" ], desc = "Sort by birth time" },
@@ -148,10 +157,18 @@ Trigger this plugin programmatically:
 ```lua
 -- In your plugin:
 local pref_by_location = require("pref-by-location")
+-- Trigger save function
 ya.manager_emit("plugin", {
   pref_by_location._id,
   args = ya.quote("save", true),
 })
+
+-- Trigger reset preference of cwd
+ya.manager_emit("plugin", {
+  pref_by_location._id,
+  args = ya.quote("reset", true),
+})
+
 
 
 ```

@@ -195,6 +195,20 @@ local change_pref = ya.sync(function()
 	end
 end)
 
+local reset_pref_cwd = function()
+	local cwd = current_dir()
+	local cur_location = escapeStringPattern(cwd)
+	local prefs = get_state(STATE_KEY.prefs)
+	for idx = #prefs, 1, -1 do
+		if not prefs[idx].is_predefined and prefs[idx].location == cur_location then
+			table.remove(prefs, idx)
+		end
+	end
+	set_state(STATE_KEY.prefs, prefs)
+	change_pref()
+	save_prefs()
+end
+
 --- broadcast through pub sub to other instances
 ---@param _ table state
 ---@param pubsub_kind PUBSUB_KIND
@@ -258,6 +272,10 @@ function M:entry(job)
 
 	if action == "save" then
 		save_prefs()
+		-- trigger update to other instances
+		broadcast(PUBSUB_KIND.prefs_changed, get_state(STATE_KEY.prefs))
+	elseif action == "reset" then
+		reset_pref_cwd()
 		-- trigger update to other instances
 		broadcast(PUBSUB_KIND.prefs_changed, get_state(STATE_KEY.prefs))
 	end
