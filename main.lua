@@ -1,6 +1,6 @@
 --- @since 25.2.7
 
-local PackageName = "Preference by location"
+local PackageName = "pref-by-location"
 
 local M = {}
 
@@ -29,6 +29,11 @@ end
 local function fail(s, ...)
 	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 5, level = "error" })
 end
+
+---@enum PUBSUB_KIND
+local PUBSUB_KIND = {
+	prefs_changed = PackageName .. "-" .. "prefs-changed",
+}
 
 local STATE_KEY = {
 	loaded = "loaded",
@@ -190,6 +195,15 @@ local change_pref = ya.sync(function()
 	end
 end)
 
+--- broadcast through pub sub to other instances
+---@param _ table state
+---@param pubsub_kind PUBSUB_KIND
+---@param data any
+---@param to number default = 0 to all instances
+local broadcast = ya.sync(function(_, pubsub_kind, data, to)
+	ps.pub_to(to or 0, pubsub_kind, data)
+end)
+
 -- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
 --- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean }
 function M:setup(opts)
@@ -228,6 +242,11 @@ function M:setup(opts)
 		end
 		change_pref()
 	end)
+
+	ps.sub_remote(PUBSUB_KIND.prefs_changed, function(new_prefs)
+		set_state(STATE_KEY.prefs, new_prefs)
+		change_pref()
+	end)
 end
 
 function M:entry(job)
@@ -239,6 +258,8 @@ function M:entry(job)
 
 	if action == "save" then
 		save_prefs()
+		-- trigger update to other instances
+		broadcast(PUBSUB_KIND.prefs_changed, get_state(STATE_KEY.prefs))
 	end
 end
 
