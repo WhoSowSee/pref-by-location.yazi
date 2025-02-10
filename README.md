@@ -60,6 +60,7 @@ require("pref-by-location"):setup({
     --   - reverse: true|false
     --   - dir_first: true|false
     --   - translit: true|false
+    --   - sensitive: true|false
 
     -- linemode: "none" |"size" |"btime" |"mtime" |"permissions" |"owner" (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode
     --   - Custom linemode also work. See the example below
@@ -68,7 +69,7 @@ require("pref-by-location"):setup({
 
     -- Some examples:
     -- Match any folder which has path start with "/mnt/remote/". Example: /mnt/remote/child/child2
-    { location = "^/mnt/remote/.*", sort = { "extension", reverse = false, dir_first = true } },
+    { location = "^/mnt/remote/.*", sort = { "extension", reverse = false, dir_first = true, sensitive = false} },
     -- Match any folder with name "Downloads"
     { location = ".*/Downloads", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
     -- Match exact folder with name "/home/test/Videos"
@@ -130,6 +131,8 @@ Or you can use `keymap` to replace all other keys
     { on = [ ",", "A" ], run = [ "sort alphabetical --reverse", "plugin pref-by-location -- save" ],               desc = "Sort alphabetically (reverse)" },
     { on = [ ",", "n" ], run = [ "sort natural --reverse=no", "plugin pref-by-location -- save" ],                 desc = "Sort naturally" },
     { on = [ ",", "N" ], run = [ "sort natural --reverse", "plugin pref-by-location -- save" ],                    desc = "Sort naturally (reverse)" },
+    # --sensitive=no or --sensitive
+    # { on = [ ",", "N" ], run = [ "sort natural --reverse=no --sensitive", "plugin pref-by-location -- save" ],                    desc = "Sort naturally" },
     { on = [ ",", "s" ], run = [ "sort size --reverse=no", "linemode size", "plugin pref-by-location -- save" ],   desc = "Sort by size" },
     { on = [ ",", "S" ], run = [ "sort size --reverse", "linemode size", "plugin pref-by-location -- save" ],      desc = "Sort by size (reverse)" },
     { on = [ ",", "r" ], run = [ "sort random --reverse=no", "plugin pref-by-location -- save" ],                  desc = "Sort randomly" },
