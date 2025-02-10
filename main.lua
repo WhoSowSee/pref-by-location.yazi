@@ -49,7 +49,7 @@ local function escapeStringPattern(str)
 	return str:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
 end
 
---- @return table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean }>
+--- @return table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean }>
 local read_prefs_from_saved_file = function(pref_path)
 	local file = io.open(pref_path, "r")
 	if file == nil then
@@ -57,7 +57,16 @@ local read_prefs_from_saved_file = function(pref_path)
 	end
 	local prefs_encoded = file:read("*all")
 	file:close()
-	return ya.json_decode(prefs_encoded)
+	local prefs = ya.json_decode(prefs_encoded)
+	-- NOTE: Temporary fix json_encode not save mixed key properly
+	for _, pref in ipairs(prefs) do
+		if pref.sort ~= nil and type(pref.sort.by) == "string" then
+			pref.sort[1] = pref.sort.by
+			pref.sort.by = nil
+		end
+	end
+
+	return prefs
 end
 
 local current_dir = ya.sync(function()
@@ -71,16 +80,30 @@ local current_pref = ya.sync(function()
 			reverse = cx.active.pref.sort_reverse,
 			dir_first = cx.active.pref.sort_dir_first,
 			translit = cx.active.pref.sort_translit,
+			sensitive = cx.active.pref.sort_sensitive,
 		},
 		linemode = cx.active.pref.linemode,
 		show_hidden = cx.active.pref.show_hidden,
 	}
 end)
 
+local function deepClone(original)
+	if type(original) ~= "table" then
+		return original
+	end
+
+	local copy = {}
+	for key, value in pairs(original) do
+		copy[deepClone(key)] = deepClone(value)
+	end
+
+	return copy
+end
+
 -- Save preferences to files, Exclude predefined preferences in setup({})
 local save_prefs = function()
 	local cwd = current_dir()
-	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
+	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
 	local prefs = get_state(STATE_KEY.prefs)
 	local prefs_predefined = {}
 	-- do not save predefined prefs
@@ -95,25 +118,35 @@ local save_prefs = function()
 		end
 	end
 
-	local pref = current_pref()
+	local cur_pref = current_pref()
 	table.insert(prefs, 1, {
 		location = escapeStringPattern(cwd),
-		sort = pref.sort,
-		linemode = pref.linemode,
-		show_hidden = pref.show_hidden,
+		sort = cur_pref.sort,
+		linemode = cur_pref.linemode,
+		show_hidden = cur_pref.show_hidden,
 	})
+
 	local save_path = Url(get_state(STATE_KEY.save_path))
 	-- create parent directories
 	local save_path_created, err_create = fs.create("dir_all", save_path:parent())
 	if err_create then
-		fail("Can't create folder to file: %s", tostring(save_path:parent()))
+		fail("Can't create folder: %s", tostring(save_path:parent()))
 	end
 
 	-- save prefs to file
 	if save_path_created then
-		local _, err_write = fs.write(save_path, ya.json_encode(prefs))
+		-- NOTE: Temporary fix json_encode not save mixed key properly
+		local prefs_tmp = deepClone(prefs)
+		for _, pref in ipairs(prefs_tmp) do
+			if pref.sort ~= nil and type(pref.sort[1]) == "string" then
+				pref.sort.by = pref.sort[1]
+				pref.sort[1] = nil
+			end
+		end
+
+		local _, err_write = fs.write(save_path, ya.json_encode(prefs_tmp))
 		if err_write then
-			fail("Can't write to file:  %s", tostring(save_path))
+			fail("Can't write to file: %s", tostring(save_path))
 		end
 	end
 
@@ -158,7 +191,7 @@ local change_pref = ya.sync(function()
 end)
 
 -- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
---- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean }
+--- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean }
 function M:setup(opts)
 	local prefs = type(opts.prefs) == "table" and opts.prefs or {}
 	if type(opts) == "table" then
@@ -177,7 +210,6 @@ function M:setup(opts)
 		for idx = #saved_prefs, 1, -1 do
 			table.insert(prefs, 1, saved_prefs[idx])
 		end
-		-- set_state(STATE_KEY.prefs, prefs)
 	end
 	-- dds subscribe on changed directory
 	ps.sub("cd", function(_)
