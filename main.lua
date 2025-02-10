@@ -106,7 +106,9 @@ local function deepClone(original)
 end
 
 -- Save preferences to files, Exclude predefined preferences in setup({})
-local save_prefs = function()
+---comment
+---@param opts ?{exclude_cwd?: boolean}
+local save_prefs = function(opts)
 	local cwd = current_dir()
 	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
 	local prefs = get_state(STATE_KEY.prefs)
@@ -123,13 +125,15 @@ local save_prefs = function()
 		end
 	end
 
-	local cur_pref = current_pref()
-	table.insert(prefs, 1, {
-		location = escapeStringPattern(cwd),
-		sort = cur_pref.sort,
-		linemode = cur_pref.linemode,
-		show_hidden = cur_pref.show_hidden,
-	})
+	if not opts or not opts.exclude_cwd then
+		local cur_pref = current_pref()
+		table.insert(prefs, 1, {
+			location = escapeStringPattern(cwd),
+			sort = cur_pref.sort,
+			linemode = cur_pref.linemode,
+			show_hidden = cur_pref.show_hidden,
+		})
+	end
 
 	local save_path = Url(get_state(STATE_KEY.save_path))
 	-- create parent directories
@@ -206,7 +210,7 @@ local reset_pref_cwd = function()
 	end
 	set_state(STATE_KEY.prefs, prefs)
 	change_pref()
-	save_prefs()
+	save_prefs({ exclude_cwd = true })
 end
 
 --- broadcast through pub sub to other instances
