@@ -18,6 +18,8 @@ This is a Yazi plugin that save these preferences by location:
 
 > [!IMPORTANT]
 > Minimum version: yazi v25.2.7
+> This plugin will conflict with folder-rules. You should remove it.
+> https://yazi-rs.github.io/docs/tips#folder-rules
 
 ## Requirements
 
