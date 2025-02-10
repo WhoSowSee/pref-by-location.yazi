@@ -259,11 +259,17 @@ function M:setup(opts)
 			})
 			set_state(STATE_KEY.prefs, prefs)
 		end
-		change_pref()
+		-- NOTE: Trigger if folder is already loaded
+		if not cx.active.current.stage.is_loading then
+			change_pref()
+		end
 	end)
 
-	ps.sub("load", function(_)
-		change_pref()
+	ps.sub("load", function(body)
+		-- NOTE: Trigger if folder is already loaded
+		if not body.stage.is_loading and current_dir() == tostring(body.url) then
+			change_pref()
+		end
 	end)
 
 	ps.sub_remote(PUBSUB_KIND.prefs_changed, function(new_prefs)
