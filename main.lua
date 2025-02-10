@@ -262,15 +262,8 @@ function M:setup(opts)
 		change_pref()
 	end)
 
-	-- NOTE: Fix case: `yazi /path/to/folder/with/large/childs` with sort = size and linemode = size
-	local load_events_count = 0
-	ps.sub("load", function(body)
-		load_events_count = load_events_count + 1
+	ps.sub("load", function(_)
 		change_pref()
-		-- NOTE: load_events_count == 2 -> make sure cwd is loaded, the first load event is parent
-		if not body.stage.is_loading and load_events_count == 2 then
-			ps.unsub("load")
-		end
 	end)
 
 	ps.sub_remote(PUBSUB_KIND.prefs_changed, function(new_prefs)
