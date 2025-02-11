@@ -44,6 +44,9 @@ require("pref-by-location"):setup({
   -- Disable this plugin completely.
   -- disabled = false -- true|false (Optional)
 
+  -- Hide "enable" and "disable" notifications.
+  -- no_notify = false -- true|false (Optional)
+
   -- You can backup/restore this file. But don't use same file in the different OS.
   -- save_path =  -- full path to save file (Optional)
   --       - Linux/MacOS: os.getenv("HOME") .. "/.config/yazi/pref-by-location"
@@ -112,6 +115,22 @@ More information about these commands and their arguments:
 - [sort](https://yazi-rs.github.io/docs/configuration/keymap#manager.sort)
 - [hidden](https://yazi-rs.github.io/docs/configuration/keymap#manager.hidden)
 
+> [!IMPORTANT] NOTE 1: disable and toggle functions behavior
+>
+> - Toggle and disable sync across instances.
+> - Enabled/disabled state will be persistently stored.
+> - Any changes during disabled state won't be saved to save file.
+> - Switching from disabled to enabled state will reload all preferences
+>   from the save file for all instances, preventing conflicts
+>   when more than one instance changed the preferences of the same folder.
+>   This also affect to current working directory (cwd).
+
+> [!IMPORTANT] NOTE 2: Sort = size and Linemode = size behavior
+> If Sort = size and Linemode = size.
+> You will notice a delay if cwd folder is large.
+> It has to wait for all child folders to fully load (calculate size) before applying
+> the preferences.
+
 ```toml
 [manager]
   prepend_keymap = [
@@ -129,9 +148,12 @@ More information about these commands and their arguments:
     # { on = [ "u", "S" ], run = [ "linemode size_and_mtime", "plugin pref-by-location -- save" ], desc = "Show Size and Modified time" },
 
     # Sorting
-    # { on = [ ",", "d" ], run = "plugin pref-by-location -- disable",                                               desc = "Disable this plugin" },
-    # This will reset any rule of this cwd then use predefined rules in setup funtion in init.lua or fallback to default settings from yazi.toml
-    { on = [ ",", "R" ], run = [ "plugin pref-by-location -- reset" ],                                                 desc = "Reset preference of cwd" },
+    # Any changes during disabled state won't be saved to save file.
+    { on = [ ",", "t" ], run = "plugin pref-by-location -- toggle",                                                desc = "Toggle auto-save preferences" },
+    { on = [ ",", "d" ], run = "plugin pref-by-location -- disable",                                               desc = "Disable auto-save preferences" },
+    # This will reset any preference changes for the current working directory (CWD),
+    # then fall back to the predefined preferences in init.lua or yazi.toml.
+    { on = [ ",", "R" ], run = [ "plugin pref-by-location -- reset" ],                                             desc = "Reset preference of cwd" },
     { on = [ ",", "m" ], run = [ "sort mtime --reverse=no", "linemode mtime", "plugin pref-by-location -- save" ], desc = "Sort by modified time" },
     { on = [ ",", "M" ], run = [ "sort mtime --reverse", "linemode mtime", "plugin pref-by-location -- save" ],    desc = "Sort by modified time (reverse)" },
     { on = [ ",", "b" ], run = [ "sort btime --reverse=no", "linemode btime", "plugin pref-by-location -- save" ], desc = "Sort by birth time" },
@@ -169,6 +191,17 @@ ya.manager_emit("plugin", {
   args = ya.quote("reset", true),
 })
 
+-- Toggle auto-save preference
+ya.manager_emit("plugin", {
+  pref_by_location._id,
+  args = ya.quote("toggle", true),
+})
+
+-- Disable auto-save preference
+ya.manager_emit("plugin", {
+  pref_by_location._id,
+  args = ya.quote("disable", true),
+})
 
 
 ```

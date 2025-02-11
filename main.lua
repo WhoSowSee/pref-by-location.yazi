@@ -22,22 +22,10 @@ local M = {}
 ---|"size"
 ---|"random",
 
-local function success(s, ...)
-	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 5, level = "info" })
-end
-
-local function fail(s, ...)
-	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 5, level = "error" })
-end
-
----@enum PUBSUB_KIND
-local PUBSUB_KIND = {
-	prefs_changed = PackageName .. "-" .. "prefs-changed",
-}
-
 local STATE_KEY = {
 	loaded = "loaded",
 	disabled = "disabled",
+	no_notify = "no_notify",
 	save_path = "save_path",
 	prefs = "prefs",
 }
@@ -48,6 +36,35 @@ end)
 
 local get_state = ya.sync(function(state, key)
 	return state[key]
+end)
+local function success(s, ...)
+	if not get_state(STATE_KEY.no_notify) then
+		ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 3, level = "info" })
+	end
+end
+
+---@enum NOTIFY_MSG
+local NOTIFY_MSG = {
+	TOGGLE = "%s auto-save preference",
+}
+
+local function fail(s, ...)
+	ya.notify({ title = PackageName, content = string.format(s, ...), timeout = 3, level = "error" })
+end
+
+---@enum PUBSUB_KIND
+local PUBSUB_KIND = {
+	prefs_changed = "@" .. PackageName .. "-" .. "prefs-changed",
+	disabled = "@" .. PackageName .. "-" .. "disabled",
+}
+
+--- broadcast through pub sub to other instances
+---@param _ table state
+---@param pubsub_kind PUBSUB_KIND
+---@param data any
+---@param to number default = 0 to all instances
+local broadcast = ya.sync(function(_, pubsub_kind, data, to)
+	ps.pub_to(to or 0, pubsub_kind, data)
 end)
 
 local function escapeStringPattern(str)
@@ -109,6 +126,10 @@ end
 ---comment
 ---@param opts ?{exclude_cwd?: boolean}
 local save_prefs = function(opts)
+	if get_state(STATE_KEY.disabled) then
+		return
+	end
+
 	local cwd = current_dir()
 	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
 	local prefs = get_state(STATE_KEY.prefs)
@@ -164,13 +185,12 @@ local save_prefs = function(opts)
 		table.insert(prefs, p)
 	end
 	set_state(STATE_KEY.prefs, prefs)
+	-- trigger update to other instances
+	broadcast(PUBSUB_KIND.prefs_changed, prefs)
 end
 
 -- This function trigger everytime user change cwd
 local change_pref = ya.sync(function()
-	if get_state(STATE_KEY.disabled) then
-		return
-	end
 	local prefs = get_state(STATE_KEY.prefs)
 	local cwd = cx.active.current.cwd
 	-- change pref based on location
@@ -213,21 +233,32 @@ local reset_pref_cwd = function()
 	save_prefs({ exclude_cwd = true })
 end
 
---- broadcast through pub sub to other instances
----@param _ table state
----@param pubsub_kind PUBSUB_KIND
----@param data any
----@param to number default = 0 to all instances
-local broadcast = ya.sync(function(_, pubsub_kind, data, to)
-	ps.pub_to(to or 0, pubsub_kind, data)
-end)
+local reload_prefs_from_file = function()
+	local saved_prefs = read_prefs_from_saved_file(get_state(STATE_KEY.save_path))
+	local old_prefs = get_state(STATE_KEY.prefs)
+	local prefs = {}
+	-- restore saved preferences from save file
+	for idx = #saved_prefs, 1, -1 do
+		table.insert(prefs, 1, saved_prefs[idx])
+	end
+	-- restore predefined prefs
+	for _, pref in ipairs(old_prefs) do
+		if pref.is_predefined then
+			table.insert(prefs, pref)
+		end
+	end
+	set_state(STATE_KEY.prefs, prefs)
+	-- trigger update to other instances
+	broadcast(PUBSUB_KIND.prefs_changed, prefs)
+end
 
 -- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
---- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean }
+--- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean, no_notify?: boolean }
 function M:setup(opts)
 	local prefs = type(opts.prefs) == "table" and opts.prefs or {}
 	if type(opts) == "table" then
 		set_state(STATE_KEY.disabled, opts.disabled)
+		set_state(STATE_KEY.no_notify, opts.no_notify)
 		local save_path = opts.save_path
 			or (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
 			or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
@@ -259,6 +290,9 @@ function M:setup(opts)
 			})
 			set_state(STATE_KEY.prefs, prefs)
 		end
+		if get_state(STATE_KEY.disabled) then
+			return
+		end
 		-- NOTE: Trigger if folder is already loaded
 		if not cx.active.current.stage.is_loading then
 			change_pref()
@@ -266,8 +300,18 @@ function M:setup(opts)
 	end)
 
 	ps.sub("load", function(body)
+		if get_state(STATE_KEY.disabled) then
+			return
+		end
 		-- NOTE: Trigger if folder is already loaded
 		if not body.stage.is_loading and current_dir() == tostring(body.url) then
+			change_pref()
+		end
+	end)
+
+	ps.sub_remote(PUBSUB_KIND.disabled, function(disabled)
+		set_state(STATE_KEY.disabled, disabled)
+		if not disabled then
 			change_pref()
 		end
 	end)
@@ -280,19 +324,26 @@ end
 
 function M:entry(job)
 	local action = job.args[1]
-	set_state(STATE_KEY.disabled, action == "disable")
-	if get_state(STATE_KEY.disabled) then
-		return
-	end
-
-	if action == "save" then
-		save_prefs()
+	if action == "toggle" then
+		local disabled = not get_state(STATE_KEY.disabled)
+		set_state(STATE_KEY.disabled, disabled)
 		-- trigger update to other instances
-		broadcast(PUBSUB_KIND.prefs_changed, get_state(STATE_KEY.prefs))
+		broadcast(PUBSUB_KIND.disabled, disabled)
+		success(NOTIFY_MSG.TOGGLE, disabled and "Disabled" or "Enabled")
+		if not disabled then
+			-- reload prefs from saved file
+			reload_prefs_from_file()
+			change_pref()
+		end
+	elseif action == "disable" then
+		set_state(STATE_KEY.disabled, true)
+		-- trigger update to other instances
+		broadcast(PUBSUB_KIND.disabled, true)
+		success(NOTIFY_MSG.TOGGLE, "Disabled")
+	elseif action == "save" then
+		save_prefs()
 	elseif action == "reset" then
 		reset_pref_cwd()
-		-- trigger update to other instances
-		broadcast(PUBSUB_KIND.prefs_changed, get_state(STATE_KEY.prefs))
 	end
 end
 
