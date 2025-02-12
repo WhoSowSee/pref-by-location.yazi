@@ -256,25 +256,24 @@ end
 --- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean, no_notify?: boolean }
 function M:setup(opts)
 	local prefs = type(opts.prefs) == "table" and opts.prefs or {}
+	local save_path = (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
+		or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
 	if type(opts) == "table" then
 		set_state(STATE_KEY.disabled, opts.disabled)
 		set_state(STATE_KEY.no_notify, opts.no_notify)
-		local save_path = opts.save_path
-			or (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
-			or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
-		set_state(STATE_KEY.save_path, save_path)
-
-		-- flag to prevent these predefined prefs is saved to file
-		for _, pref in ipairs(prefs) do
-			pref.is_predefined = true
-		end
-		-- restore saved prefs from file
-		local saved_prefs = read_prefs_from_saved_file(get_state(STATE_KEY.save_path))
-		for idx = #saved_prefs, 1, -1 do
-			table.insert(prefs, 1, saved_prefs[idx])
-		end
+		save_path = opts.save_path or save_path
 	end
 
+	set_state(STATE_KEY.save_path, save_path)
+	-- flag to prevent these predefined prefs is saved to file
+	for _, pref in ipairs(prefs) do
+		pref.is_predefined = true
+	end
+	-- restore saved prefs from file
+	local saved_prefs = read_prefs_from_saved_file(get_state(STATE_KEY.save_path))
+	for idx = #saved_prefs, 1, -1 do
+		table.insert(prefs, 1, saved_prefs[idx])
+	end
 	-- dds subscribe on changed directory
 	ps.sub("cd", function(_)
 		if not get_state(STATE_KEY.loaded) then
