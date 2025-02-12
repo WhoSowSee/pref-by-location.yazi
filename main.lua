@@ -259,7 +259,7 @@ function M:setup(opts)
 	local save_path = (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
 		or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
 	if type(opts) == "table" then
-		set_state(STATE_KEY.disabled, opts.disabled and true or false)
+		set_state(STATE_KEY.disabled, opts.disabled)
 		set_state(STATE_KEY.no_notify, opts.no_notify)
 		save_path = opts.save_path or save_path
 	end
@@ -277,7 +277,6 @@ function M:setup(opts)
 	-- dds subscribe on changed directory
 	ps.sub("cd", function(_)
 		if not get_state(STATE_KEY.loaded) then
-			set_state(STATE_KEY.loaded, true)
 			-- Add fallback location from yazi.toml
 			local current_location_pref = current_pref()
 			table.insert(prefs, {
@@ -288,6 +287,7 @@ function M:setup(opts)
 				is_predefined = true,
 			})
 			set_state(STATE_KEY.prefs, prefs)
+			set_state(STATE_KEY.loaded, true)
 		end
 		if get_state(STATE_KEY.disabled) then
 			return
@@ -308,16 +308,16 @@ function M:setup(opts)
 		end
 	end)
 
-	ps.sub_remote(PUBSUB_KIND.disabled, function(disabled)
-		set_state(STATE_KEY.disabled, disabled and true or false)
-		if not disabled then
-			change_pref()
-		end
-	end)
-
 	ps.sub_remote(PUBSUB_KIND.prefs_changed, function(new_prefs)
 		set_state(STATE_KEY.prefs, new_prefs)
 		change_pref()
+	end)
+
+	ps.sub_remote(PUBSUB_KIND.disabled, function(disabled)
+		set_state(STATE_KEY.disabled, disabled)
+		if not disabled and get_state(STATE_KEY.loaded) then
+			change_pref()
+		end
 	end)
 end
 
@@ -325,7 +325,7 @@ function M:entry(job)
 	local action = job.args[1]
 	if action == "toggle" then
 		local disabled = not get_state(STATE_KEY.disabled)
-		set_state(STATE_KEY.disabled, disabled and true or false)
+		set_state(STATE_KEY.disabled, disabled)
 		-- trigger update to other instances
 		broadcast(PUBSUB_KIND.disabled, disabled)
 		success(NOTIFY_MSG.TOGGLE, disabled and "Disabled" or "Enabled")
