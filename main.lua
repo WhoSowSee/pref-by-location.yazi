@@ -259,7 +259,7 @@ function M:setup(opts)
 	local save_path = (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
 		or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
 	if type(opts) == "table" then
-		set_state(STATE_KEY.disabled, opts.disabled)
+		set_state(STATE_KEY.disabled, opts.disabled and true or false)
 		set_state(STATE_KEY.no_notify, opts.no_notify)
 		save_path = opts.save_path or save_path
 	end
@@ -309,7 +309,7 @@ function M:setup(opts)
 	end)
 
 	ps.sub_remote(PUBSUB_KIND.disabled, function(disabled)
-		set_state(STATE_KEY.disabled, disabled)
+		set_state(STATE_KEY.disabled, disabled and true or false)
 		if not disabled then
 			change_pref()
 		end
@@ -325,7 +325,7 @@ function M:entry(job)
 	local action = job.args[1]
 	if action == "toggle" then
 		local disabled = not get_state(STATE_KEY.disabled)
-		set_state(STATE_KEY.disabled, disabled)
+		set_state(STATE_KEY.disabled, disabled and true or false)
 		-- trigger update to other instances
 		broadcast(PUBSUB_KIND.disabled, disabled)
 		success(NOTIFY_MSG.TOGGLE, disabled and "Disabled" or "Enabled")
