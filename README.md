@@ -179,29 +179,11 @@ Trigger this plugin programmatically:
 ```lua
 -- In your plugin:
 local pref_by_location = require("pref-by-location")
--- Trigger save function
-ya.manager_emit("plugin", {
-  pref_by_location._id,
-  args = ya.quote("save", true),
-})
-
--- Trigger reset preference of cwd
-ya.manager_emit("plugin", {
-  pref_by_location._id,
-  args = ya.quote("reset", true),
-})
-
--- Toggle auto-save preference
-ya.manager_emit("plugin", {
-  pref_by_location._id,
-  args = ya.quote("toggle", true),
-})
-
--- Disable auto-save preference
-ya.manager_emit("plugin", {
-  pref_by_location._id,
-  args = ya.quote("disable", true),
-})
-
-
+-- Available actions: save, reset, toggle, disable
+  local action = "save"
+	local args = ya.quote(action)
+	ya.manager_emit("plugin", {
+		pref_by_location._id,
+		args,
+	})
 ```

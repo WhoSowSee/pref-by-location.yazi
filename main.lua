@@ -27,6 +27,7 @@ local STATE_KEY = {
 	disabled = "disabled",
 	no_notify = "no_notify",
 	save_path = "save_path",
+	last_hovered_folder = "last_hovered_folder",
 	prefs = "prefs",
 }
 
@@ -192,10 +193,10 @@ end
 -- This function trigger everytime user change cwd
 local change_pref = ya.sync(function()
 	local prefs = get_state(STATE_KEY.prefs)
-	local cwd = cx.active.current.cwd
+	local cwd = tostring(cx.active.current.cwd)
 	-- change pref based on location
 	for _, pref in ipairs(prefs) do
-		if string.match(tostring(cwd), pref.location .. "$") then
+		if string.match(cwd, pref.location .. "$") then
 			-- sort
 			local sort_pref = pref.sort
 			if sort_pref then
@@ -213,6 +214,58 @@ local change_pref = ya.sync(function()
 			local show_hidden_pref = pref.show_hidden
 			if show_hidden_pref ~= nil then
 				ya.manager_emit("hidden", { show_hidden_pref and "show" or "hide", tab = cx.active.id })
+
+				-- Restore hovered hidden folder
+				local last_hovered_folder = get_state(STATE_KEY.last_hovered_folder .. cx.active.id)
+
+				if last_hovered_folder then
+					if
+						-- NOTE: Case user move left to right
+						(last_hovered_folder.preview_cwd == cwd)
+						and last_hovered_folder.preview_hovered_folder
+							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
+					then
+						-- hacky way to wait for hidden fully updated UI, then restore hover
+						local args = ya.quote("private-restore-hover")
+							.. " "
+							.. ya.quote(last_hovered_folder.preview_hovered_folder)
+							.. " "
+							.. ya.quote(cx.active.id)
+
+						ya.manager_emit("plugin", {
+							get_state("_id"),
+							args,
+						})
+					elseif
+						--NOTE: Case user move from right to left
+						(last_hovered_folder.parent_cwd == cwd or not last_hovered_folder.parent_cwd)
+						and last_hovered_folder.hovered_folder
+							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
+					then
+						-- hacky way to wait for hidden fully updated UI, then restore hover
+						local args = ya.quote("private-restore-hover")
+							.. " "
+							.. ya.quote(last_hovered_folder.hovered_folder)
+							.. " "
+							.. ya.quote(cx.active.id)
+
+						ya.manager_emit("plugin", {
+							get_state("_id"),
+							args,
+						})
+					end
+				end
+				-- Save parent cwd + parent hovered folder + preview hovered folder
+
+				local parent_folder = cx.active.parent
+				set_state(STATE_KEY.last_hovered_folder .. cx.active.id, {
+					parent_cwd = parent_folder and tostring(parent_folder.cwd),
+					hovered_folder = cwd,
+					preview_cwd = cx.active.preview.folder and tostring(cx.active.preview.folder.cwd),
+					preview_hovered_folder = cx.active.preview.folder
+						and cx.active.preview.folder.hovered
+						and tostring(cx.active.preview.folder.hovered.url),
+				})
 			end
 			return
 		end
@@ -343,6 +396,8 @@ function M:entry(job)
 		save_prefs()
 	elseif action == "reset" then
 		reset_pref_cwd()
+	elseif action == "private-restore-hover" then
+		ya.manager_emit("hover", { job.args[2], tab = job.args[3] })
 	end
 end
 
