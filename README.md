@@ -78,7 +78,7 @@ require("pref-by-location"):setup({
     { location = "^/mnt/remote/.*", sort = { "extension", reverse = false, dir_first = true, sensitive = false} },
     -- Match any folder with name "Downloads"
     { location = ".*/Downloads", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
-    -- Match exact folder with name "/home/test/Videos"
+    -- Match exact folder with absolute path "/home/test/Videos"
     { location = "/home/test/Videos", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
 
     -- show_hidden for any folder with name "secret"
@@ -115,8 +115,8 @@ More information about these commands and their arguments:
 - [sort](https://yazi-rs.github.io/docs/configuration/keymap#manager.sort)
 - [hidden](https://yazi-rs.github.io/docs/configuration/keymap#manager.hidden)
 
-> [!IMPORTANT] NOTE 1: disable and toggle functions behavior
->
+> [!IMPORTANT] 
+> NOTE 1 disable and toggle functions behavior:
 > - Toggle and disable sync across instances.
 > - Enabled/disabled state will be persistently stored.
 > - Any changes during disabled state won't be saved to save file.
@@ -125,7 +125,8 @@ More information about these commands and their arguments:
 >   when more than one instance changed the preferences of the same folder.
 >   This also affect to current working directory (cwd).
 
-> [!IMPORTANT] NOTE 2: Sort = size and Linemode = size behavior
+> [!IMPORTANT] 
+> NOTE 2 Sort = size and Linemode = size behavior:
 > If Sort = size and Linemode = size.
 > You will notice a delay if cwd folder is large.
 > It has to wait for all child folders to fully load (calculate size) before applying
