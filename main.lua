@@ -351,6 +351,11 @@ function M:setup(opts)
 		end
 	end)
 
+	-- NOTE: project.yazi compatibility
+	ps.sub_remote("project-loaded", function(_)
+		change_pref()
+	end)
+
 	ps.sub("load", function(body)
 		if get_state(STATE_KEY.disabled) then
 			return
