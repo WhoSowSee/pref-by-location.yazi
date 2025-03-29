@@ -346,7 +346,13 @@ function M:setup(opts)
 			return
 		end
 		-- NOTE: Trigger if folder is already loaded
-		if not cx.active.current.stage.is_loading then
+		-- NOTE: REMOVE AFTER NEXT UPDATE
+		local has_lua54_call_metamethod, loaded = pcall(cx.active.current.stage) -- Triggers error
+		if not has_lua54_call_metamethod then
+			loaded = not cx.active.current.stage.is_loading
+		end
+
+		if loaded then
 			change_pref()
 		end
 	end)
@@ -361,7 +367,13 @@ function M:setup(opts)
 			return
 		end
 		-- NOTE: Trigger if folder is already loaded
-		if not body.stage.is_loading and current_dir() == tostring(body.url) then
+		-- NOTE: REMOVE AFTER NEXT UPDATE
+		local has_lua54_call_metamethod, loaded = pcall(body.stage) -- Triggers error
+		if not has_lua54_call_metamethod then
+			loaded = not body.stage.is_loading
+		end
+
+		if loaded and current_dir() == tostring(body.url) then
 			change_pref()
 		end
 	end)
