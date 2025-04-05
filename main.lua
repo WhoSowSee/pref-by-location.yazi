@@ -1,5 +1,5 @@
 --- @since 25.2.7
---- NOTE: REMOVE :parent() :name() :is_hovered() :ext() after upgrade to v25.4.4
+--- NOTE: REMOVE :parent() :name() :is_hovered() :ext() tab.id after upgrade to v25.4.4
 --- https://github.com/sxyazi/yazi/pull/2572
 
 local PackageName = "pref-by-location"
@@ -206,23 +206,37 @@ local change_pref = ya.sync(function()
 			-- sort
 			local sort_pref = pref.sort
 			if sort_pref then
-				ya.dict_merge(sort_pref, { tab = cx.active.id })
+				ya.dict_merge(sort_pref, {
+					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+						or cx.active.id.value,
+				})
 				ya.manager_emit("sort", sort_pref)
 			end
 
 			-- linemode
 			local linemode_pref = pref.linemode
 			if linemode_pref then
-				ya.manager_emit("linemode", { linemode_pref, tab = cx.active.id })
+				ya.manager_emit("linemode", {
+					linemode_pref,
+					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+						or cx.active.id.value,
+				})
 			end
 
 			--show_hidden
 			local show_hidden_pref = pref.show_hidden
 			if show_hidden_pref ~= nil then
-				ya.manager_emit("hidden", { show_hidden_pref and "show" or "hide", tab = cx.active.id })
+				ya.manager_emit("hidden", {
+					show_hidden_pref and "show" or "hide",
+					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+						or cx.active.id.value,
+				})
 
 				-- Restore hovered hidden folder
-				local last_hovered_folder = get_state(STATE_KEY.last_hovered_folder .. cx.active.id)
+				local last_hovered_folder = get_state(
+					STATE_KEY.last_hovered_folder .. (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+						or cx.active.id.value
+				)
 
 				if last_hovered_folder then
 					if
@@ -236,7 +250,10 @@ local change_pref = ya.sync(function()
 							.. " "
 							.. ya.quote(last_hovered_folder.preview_hovered_folder)
 							.. " "
-							.. ya.quote(cx.active.id)
+							.. ya.quote(
+								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+									or cx.active.id.value
+							)
 
 						ya.manager_emit("plugin", {
 							get_state("_id"),
@@ -253,7 +270,10 @@ local change_pref = ya.sync(function()
 							.. " "
 							.. ya.quote(last_hovered_folder.hovered_folder)
 							.. " "
-							.. ya.quote(cx.active.id)
+							.. ya.quote(
+								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+									or cx.active.id.value
+							)
 
 						ya.manager_emit("plugin", {
 							get_state("_id"),
@@ -264,14 +284,18 @@ local change_pref = ya.sync(function()
 				-- Save parent cwd + parent hovered folder + preview hovered folder
 
 				local parent_folder = cx.active.parent
-				set_state(STATE_KEY.last_hovered_folder .. cx.active.id, {
-					parent_cwd = parent_folder and tostring(parent_folder.cwd),
-					hovered_folder = cwd,
-					preview_cwd = cx.active.preview.folder and tostring(cx.active.preview.folder.cwd),
-					preview_hovered_folder = cx.active.preview.folder
-						and cx.active.preview.folder.hovered
-						and tostring(cx.active.preview.folder.hovered.url),
-				})
+				set_state(
+					STATE_KEY.last_hovered_folder .. (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+						or cx.active.id.value,
+					{
+						parent_cwd = parent_folder and tostring(parent_folder.cwd),
+						hovered_folder = cwd,
+						preview_cwd = cx.active.preview.folder and tostring(cx.active.preview.folder.cwd),
+						preview_hovered_folder = cx.active.preview.folder
+							and cx.active.preview.folder.hovered
+							and tostring(cx.active.preview.folder.hovered.url),
+					}
+				)
 			end
 			return
 		end
