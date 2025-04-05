@@ -1,4 +1,6 @@
 --- @since 25.2.7
+--- NOTE: REMOVE :parent() :name() :is_hovered() :ext() after upgrade to v25.4.4
+--- https://github.com/sxyazi/yazi/pull/2572
 
 local PackageName = "pref-by-location"
 
@@ -159,9 +161,13 @@ local save_prefs = function(opts)
 
 	local save_path = Url(get_state(STATE_KEY.save_path))
 	-- create parent directories
-	local save_path_created, err_create = fs.create("dir_all", save_path:parent())
+	local save_path_created, err_create =
+		fs.create("dir_all", type(save_path.parent) == "function" and save_path:parent() or save_path.parent)
 	if err_create then
-		fail("Can't create folder: %s", tostring(save_path:parent()))
+		fail(
+			"Can't create folder: %s",
+			tostring(type(save_path.parent) == "function" and save_path:parent() or save_path.parent)
+		)
 	end
 
 	-- save prefs to file
