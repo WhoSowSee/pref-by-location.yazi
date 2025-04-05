@@ -234,8 +234,11 @@ local change_pref = ya.sync(function()
 
 				-- Restore hovered hidden folder
 				local last_hovered_folder = get_state(
-					STATE_KEY.last_hovered_folder .. (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-						or cx.active.id.value
+					STATE_KEY.last_hovered_folder
+						.. tostring(
+							(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+								or cx.active.id.value
+						)
 				)
 
 				if last_hovered_folder then
@@ -285,8 +288,11 @@ local change_pref = ya.sync(function()
 
 				local parent_folder = cx.active.parent
 				set_state(
-					STATE_KEY.last_hovered_folder .. (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-						or cx.active.id.value,
+					STATE_KEY.last_hovered_folder
+						.. tostring(
+							(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+								or cx.active.id.value
+						),
 					{
 						parent_cwd = parent_folder and tostring(parent_folder.cwd),
 						hovered_folder = cwd,
