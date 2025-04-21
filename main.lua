@@ -248,19 +248,10 @@ local change_pref = ya.sync(function()
 						and last_hovered_folder.preview_hovered_folder
 							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
 					then
-						-- hacky way to wait for hidden fully updated UI, then restore hover
-						local args = ya.quote("private-restore-hover")
-							.. " "
-							.. ya.quote(last_hovered_folder.preview_hovered_folder)
-							.. " "
-							.. ya.quote(
-								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-									or cx.active.id.value
-							)
-
-						ya.manager_emit("plugin", {
-							get_state("_id"),
-							args,
+						ya.manager_emit("reveal", {
+							last_hovered_folder.preview_hovered_folder,
+							tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+								or cx.active.id.value,
 						})
 					elseif
 						--NOTE: Case user move from right to left
@@ -268,19 +259,10 @@ local change_pref = ya.sync(function()
 						and last_hovered_folder.hovered_folder
 							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
 					then
-						-- hacky way to wait for hidden fully updated UI, then restore hover
-						local args = ya.quote("private-restore-hover")
-							.. " "
-							.. ya.quote(last_hovered_folder.hovered_folder)
-							.. " "
-							.. ya.quote(
-								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-									or cx.active.id.value
-							)
-
-						ya.manager_emit("plugin", {
-							get_state("_id"),
-							args,
+						ya.manager_emit("reveal", {
+							last_hovered_folder.hovered_folder,
+							tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+								or cx.active.id.value,
 						})
 					end
 				end
@@ -449,8 +431,6 @@ function M:entry(job)
 		save_prefs()
 	elseif action == "reset" then
 		reset_pref_cwd()
-	elseif action == "private-restore-hover" then
-		ya.manager_emit("hover", { job.args[2], tab = job.args[3] })
 	end
 end
 
