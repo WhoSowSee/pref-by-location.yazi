@@ -25,6 +25,7 @@ local M = {}
 ---|"random",
 
 local STATE_KEY = {
+	feature_flags = "feature_flags",
 	loaded = "loaded",
 	disabled = "disabled",
 	no_notify = "no_notify",
@@ -248,40 +249,60 @@ local change_pref = ya.sync(function()
 						and last_hovered_folder.preview_hovered_folder
 							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
 					then
-						-- hacky way to wait for hidden fully updated UI, then restore hover
-						local args = ya.quote("private-restore-hover")
-							.. " "
-							.. ya.quote(last_hovered_folder.preview_hovered_folder)
-							.. " "
-							.. ya.quote(
-								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-									or cx.active.id.value
-							)
+						if get_state(STATE_KEY.feature_flags).is_support_new_reveal_no_dummy then
+							ya.emit("reveal", {
+								last_hovered_folder.preview_hovered_folder,
+								no_dummy = true,
+								tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string")
+										and cx.active.id
+									or cx.active.id.value,
+							})
+						else
+							-- hacky way to wait for hidden fully updated UI, then restore hover
+							local args = ya.quote("private-restore-hover")
+								.. " "
+								.. ya.quote(last_hovered_folder.preview_hovered_folder)
+								.. " "
+								.. ya.quote(
+									(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+										or cx.active.id.value
+								)
 
-						ya.manager_emit("plugin", {
-							get_state("_id"),
-							args,
-						})
+							ya.manager_emit("plugin", {
+								get_state("_id"),
+								args,
+							})
+						end
 					elseif
 						--NOTE: Case user move from right to left
 						(last_hovered_folder.parent_cwd == cwd or not last_hovered_folder.parent_cwd)
 						and last_hovered_folder.hovered_folder
 							~= (cx.active.current.hovered and tostring(cx.active.current.hovered.url))
 					then
-						-- hacky way to wait for hidden fully updated UI, then restore hover
-						local args = ya.quote("private-restore-hover")
-							.. " "
-							.. ya.quote(last_hovered_folder.hovered_folder)
-							.. " "
-							.. ya.quote(
-								(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
-									or cx.active.id.value
-							)
+						if get_state(STATE_KEY.feature_flags).is_support_new_reveal_no_dummy then
+							ya.emit("reveal", {
+								last_hovered_folder.hovered_folder,
+								no_dummy = true,
+								tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string")
+										and cx.active.id
+									or cx.active.id.value,
+							})
+						else
+							-- hacky way to wait for hidden fully updated UI, then restore hover
+							local args = ya.quote("private-restore-hover")
+								.. " "
+								.. ya.quote(last_hovered_folder.hovered_folder)
+								.. " "
+								.. ya.quote(
+									(type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
+										or cx.active.id.value
+								)
 
-						ya.manager_emit("plugin", {
-							get_state("_id"),
-							args,
-						})
+							ya.manager_emit("plugin", {
+								get_state("_id"),
+								args,
+							})
+						end
 					end
 				end
 				-- Save parent cwd + parent hovered folder + preview hovered folder
@@ -344,6 +365,12 @@ end
 -- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
 --- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean, no_notify?: boolean }
 function M:setup(opts)
+	-- TODO: Remove after > v25.4.8
+	-- features flags
+	set_state(STATE_KEY.feature_flags, {
+		is_support_new_reveal_no_dummy = type(ya.emit) == "function",
+	})
+
 	local prefs = type(opts.prefs) == "table" and opts.prefs or {}
 	local save_path = (ya.target_family() == "windows" and os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location")
 		or (os.getenv("HOME") .. "/.config/yazi/pref-by-location")
@@ -450,6 +477,7 @@ function M:entry(job)
 	elseif action == "reset" then
 		reset_pref_cwd()
 	elseif action == "private-restore-hover" then
+		-- NOTE: Remove after > v25.4.8
 		local cha = fs.cha(Url(job.args[2]))
 		if cha then
 			ya.manager_emit("reveal", { job.args[2], tab = job.args[3] })
