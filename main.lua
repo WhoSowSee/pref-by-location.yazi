@@ -362,6 +362,10 @@ local reload_prefs_from_file = function()
 	broadcast(PUBSUB_KIND.prefs_changed, prefs)
 end
 
+function M:is_literal_string(str)
+	return str:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+end
+
 -- sort value is https://yazi-rs.github.io/docs/configuration/keymap#manager.sort
 --- @param opts {prefs: table<{ location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>, save_path?: string, disabled?: boolean, no_notify?: boolean }
 function M:setup(opts)

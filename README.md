@@ -27,6 +27,14 @@ This is a Yazi plugin that save these preferences by location:
 - [yazi >= 25.2.7](https://github.com/sxyazi/yazi)
 - Tested on Linux.
 
+## Preferences priority
+
+This plugin will pick the first matching preference. The order of preferences is:
+
+- Manually saved preferences (using `plugin pref-by-location -- save`)
+- Predefined preferences (in `setup` function)
+- Default preferences (in `yazi.toml`)
+
 ## Installation
 
 Install the plugin:
@@ -40,7 +48,8 @@ ya pack -a boydaihungst/pref-by-location
 Prefs is optional but the setup function is required.
 
 ```lua
-require("pref-by-location"):setup({
+local pref_by_location = require("pref-by-location")
+pref_by_location:setup({
   -- Disable this plugin completely.
   -- disabled = false -- true|false (Optional)
 
@@ -58,8 +67,9 @@ require("pref-by-location"):setup({
     --   - Support literals full path, lua pattern (string.match pattern): https://www.lua.org/pil/20.2.html
     --     And don't put ($) sign at the end of the location. %$ is ok.
     --   - If you want to use special characters (such as . * ? + [ ] ( ) ^ $ %) in "location"
-    --     you need to escape them with a percent sign (%).
+    --     you need to escape them with a percent sign (%) or use a helper funtion `pref_by_location.is_literal_string`
     --     Example: "/home/test/Hello (Lua) [world]" => { location = "/home/test/Hello %(Lua%) %[world%]", ....}
+    --     or { location = pref_by_location.is_literal_string("/home/test/Hello (Lua) [world]"), .....}
 
     -- sort: {} (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by
     --   - extension: "none"|"mtime"|"btime"|"extension"|"alphabetical"|"natural"|"size"|"random", (Optional)
@@ -78,8 +88,9 @@ require("pref-by-location"):setup({
     { location = "^/mnt/remote/.*", sort = { "extension", reverse = false, dir_first = true, sensitive = false} },
     -- Match any folder with name "Downloads"
     { location = ".*/Downloads", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
-    -- Match exact folder with absolute path "/home/test/Videos"
-    { location = "/home/test/Videos", sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
+    -- Match exact folder with absolute path "/home/test/Videos".
+    -- Use helper function `pref_by_location.is_literal_string` to prevent the case where the path contains special characters
+    { location = pref_by_location.is_literal_string("/home/test/Videos"), sort = { "btime", reverse = true, dir_first = true }, linemode = "btime" },
 
     -- show_hidden for any folder with name "secret"
     {
@@ -115,8 +126,9 @@ More information about these commands and their arguments:
 - [sort](https://yazi-rs.github.io/docs/configuration/keymap#manager.sort)
 - [hidden](https://yazi-rs.github.io/docs/configuration/keymap#manager.hidden)
 
-> [!IMPORTANT] 
+> [!IMPORTANT]
 > NOTE 1 disable and toggle functions behavior:
+>
 > - Toggle and disable sync across instances.
 > - Enabled/disabled state will be persistently stored.
 > - Any changes during disabled state won't be saved to save file.
@@ -125,7 +137,7 @@ More information about these commands and their arguments:
 >   when more than one instance changed the preferences of the same folder.
 >   This also affect to current working directory (cwd).
 
-> [!IMPORTANT] 
+> [!IMPORTANT]
 > NOTE 2 Sort = size and Linemode = size behavior:
 > If Sort = size and Linemode = size.
 > You will notice a delay if cwd folder is large.
