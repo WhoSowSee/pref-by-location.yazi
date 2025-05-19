@@ -1,6 +1,4 @@
---- @since 25.2.7
---- NOTE: REMOVE :parent() :name() :is_hovered() :ext() tab.id after upgrade to v25.4.4
---- https://github.com/sxyazi/yazi/pull/2572
+--- @since 25.4.8
 
 local PackageName = "pref-by-location"
 
@@ -162,13 +160,9 @@ local save_prefs = function(opts)
 
 	local save_path = Url(get_state(STATE_KEY.save_path))
 	-- create parent directories
-	local save_path_created, err_create =
-		fs.create("dir_all", type(save_path.parent) == "function" and save_path:parent() or save_path.parent)
+	local save_path_created, err_create = fs.create("dir_all", save_path.parent)
 	if err_create then
-		fail(
-			"Can't create folder: %s",
-			tostring(type(save_path.parent) == "function" and save_path:parent() or save_path.parent)
-		)
+		fail("Can't create folder: %s", tostring(save_path.parent))
 	end
 
 	-- save prefs to file
@@ -211,13 +205,13 @@ local change_pref = ya.sync(function()
 					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
 						or cx.active.id.value,
 				})
-				ya.manager_emit("sort", sort_pref)
+				ya.mgr_emit("sort", sort_pref)
 			end
 
 			-- linemode
 			local linemode_pref = pref.linemode
 			if linemode_pref then
-				ya.manager_emit("linemode", {
+				ya.mgr_emit("linemode", {
 					linemode_pref,
 					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
 						or cx.active.id.value,
@@ -227,7 +221,7 @@ local change_pref = ya.sync(function()
 			--show_hidden
 			local show_hidden_pref = pref.show_hidden
 			if show_hidden_pref ~= nil then
-				ya.manager_emit("hidden", {
+				ya.mgr_emit("hidden", {
 					show_hidden_pref and "show" or "hide",
 					tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
 						or cx.active.id.value,
@@ -268,7 +262,7 @@ local change_pref = ya.sync(function()
 										or cx.active.id.value
 								)
 
-							ya.manager_emit("plugin", {
+							ya.mgr_emit("plugin", {
 								get_state("_id"),
 								args,
 							})
@@ -298,7 +292,7 @@ local change_pref = ya.sync(function()
 										or cx.active.id.value
 								)
 
-							ya.manager_emit("plugin", {
+							ya.mgr_emit("plugin", {
 								get_state("_id"),
 								args,
 							})
@@ -413,13 +407,8 @@ function M:setup(opts)
 			return
 		end
 		-- NOTE: Trigger if folder is already loaded
-		-- NOTE: REMOVE AFTER NEXT UPDATE
-		local has_lua54_call_metamethod, loaded = pcall(cx.active.current.stage) -- Triggers error
-		if not has_lua54_call_metamethod then
-			loaded = not cx.active.current.stage.is_loading
-		end
 
-		if loaded then
+		if cx.active.current.stage then
 			change_pref()
 		end
 	end)
@@ -434,13 +423,7 @@ function M:setup(opts)
 			return
 		end
 		-- NOTE: Trigger if folder is already loaded
-		-- NOTE: REMOVE AFTER NEXT UPDATE
-		local has_lua54_call_metamethod, loaded = pcall(body.stage) -- Triggers error
-		if not has_lua54_call_metamethod then
-			loaded = not body.stage.is_loading
-		end
-
-		if loaded and current_dir() == tostring(body.url) then
+		if body.stage and current_dir() == tostring(body.url) then
 			change_pref()
 		end
 	end)
@@ -484,7 +467,7 @@ function M:entry(job)
 		-- NOTE: Remove after > v25.4.8
 		local cha = fs.cha(Url(job.args[2]))
 		if cha then
-			ya.manager_emit("reveal", { job.args[2], tab = job.args[3] })
+			ya.mgr_emit("reveal", { job.args[2], tab = job.args[3] })
 		end
 	end
 end

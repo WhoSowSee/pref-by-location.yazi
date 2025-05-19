@@ -17,14 +17,14 @@ This is a Yazi plugin that save these preferences by location:
 - [show_hidden](https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden)
 
 > [!IMPORTANT]
-> Minimum version: yazi v25.2.7.
+> Minimum version: yazi v25.4.8.
 >
 > This plugin will conflict with folder-rules. You should remove it.
 > https://yazi-rs.github.io/docs/tips#folder-rules
 
 ## Requirements
 
-- [yazi >= 25.2.7](https://github.com/sxyazi/yazi)
+- [yazi >= 25.4.8](https://github.com/sxyazi/yazi)
 - Tested on Linux.
 
 ## Preferences priority
