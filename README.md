@@ -12,19 +12,19 @@
 
 This is a Yazi plugin that save these preferences by location:
 
-- [linemode](https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode)
-- [sort](https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by)
-- [show_hidden](https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden)
+- [linemode](https://yazi-rs.github.io/docs/configuration/yazi#mgr.linemode)
+- [sort](https://yazi-rs.github.io/docs/configuration/yazi#mgr.sort_by)
+- [show_hidden](https://yazi-rs.github.io/docs/configuration/yazi#mgr.show_hidden)
 
 > [!IMPORTANT]
-> Minimum version: yazi v25.4.8.
+> Minimum version: yazi v25.5.28.
 >
 > This plugin will conflict with folder-rules. You should remove it.
 > https://yazi-rs.github.io/docs/tips#folder-rules
 
 ## Requirements
 
-- [yazi >= 25.4.8](https://github.com/sxyazi/yazi)
+- [yazi >= 25.5.28](https://github.com/sxyazi/yazi)
 - Tested on Linux.
 
 ## Preferences priority
@@ -40,6 +40,8 @@ This plugin will pick the first matching preference. The order of preferences is
 Install the plugin:
 
 ```sh
+ya pkg add boydaihungst/pref-by-location
+# or
 ya pack -a boydaihungst/pref-by-location
 ```
 
@@ -71,17 +73,17 @@ pref_by_location:setup({
     --     Example: "/home/test/Hello (Lua) [world]" => { location = "/home/test/Hello %(Lua%) %[world%]", ....}
     --     or { location = pref_by_location.is_literal_string("/home/test/Hello (Lua) [world]"), .....}
 
-    -- sort: {} (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.sort_by
+    -- sort: {} (Optional) https://yazi-rs.github.io/docs/configuration/yazi#mgr.sort_by
     --   - extension: "none"|"mtime"|"btime"|"extension"|"alphabetical"|"natural"|"size"|"random", (Optional)
     --   - reverse: true|false (Optional)
     --   - dir_first: true|false (Optional)
     --   - translit: true|false (Optional)
     --   - sensitive: true|false (Optional)
 
-    -- linemode: "none" |"size" |"btime" |"mtime" |"permissions" |"owner" (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.linemode
+    -- linemode: "none" |"size" |"btime" |"mtime" |"permissions" |"owner" (Optional) https://yazi-rs.github.io/docs/configuration/yazi#mgr.linemode
     --   - Custom linemode also work. See the example below
 
-    -- show_hidden: true|false (Optional) https://yazi-rs.github.io/docs/configuration/yazi#manager.show_hidden
+    -- show_hidden: true|false (Optional) https://yazi-rs.github.io/docs/configuration/yazi#mgr.show_hidden
 
     -- Some examples:
     -- Match any folder which has path start with "/mnt/remote/". Example: /mnt/remote/child/child2
@@ -122,9 +124,9 @@ Or you can use `keymap` to replace all other keys
 
 More information about these commands and their arguments:
 
-- [linemode](https://yazi-rs.github.io/docs/configuration/keymap#manager.linemode)
-- [sort](https://yazi-rs.github.io/docs/configuration/keymap#manager.sort)
-- [hidden](https://yazi-rs.github.io/docs/configuration/keymap#manager.hidden)
+- [linemode](https://yazi-rs.github.io/docs/configuration/keymap#mgr.linemode)
+- [sort](https://yazi-rs.github.io/docs/configuration/keymap#mgr.sort)
+- [hidden](https://yazi-rs.github.io/docs/configuration/keymap#mgr.hidden)
 
 > [!IMPORTANT]
 > NOTE 1 disable and toggle functions behavior:
@@ -145,7 +147,7 @@ More information about these commands and their arguments:
 > the preferences.
 
 ```toml
-[manager]
+[mgr]
   prepend_keymap = [
     # Toggle Hidden
     { on = ".", run = [ "hidden toggle", "plugin pref-by-location -- save" ], desc = "Toggle the visibility of hidden files" },
@@ -195,7 +197,7 @@ local pref_by_location = require("pref-by-location")
 -- Available actions: save, reset, toggle, disable
   local action = "save"
 	local args = ya.quote(action)
-	ya.manager_emit("plugin", {
+	ya.emit("plugin", {
 		pref_by_location._id,
 		args,
 	})
