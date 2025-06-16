@@ -1,4 +1,4 @@
---- @since 25.5.28
+--- @since 25.5.31
 
 local PackageName = "pref-by-location"
 
@@ -245,6 +245,7 @@ local change_pref = ya.sync(function()
 						ya.emit("reveal", {
 							last_hovered_folder.preview_hovered_folder,
 							no_dummy = true,
+							raw = true,
 							tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
 								or cx.active.id.value,
 						})
@@ -257,6 +258,7 @@ local change_pref = ya.sync(function()
 						ya.emit("reveal", {
 							last_hovered_folder.hovered_folder,
 							no_dummy = true,
+							raw = true,
 							tab = (type(cx.active.id) == "number" or type(cx.active.id) == "string") and cx.active.id
 								or cx.active.id.value,
 						})
