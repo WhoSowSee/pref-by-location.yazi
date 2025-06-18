@@ -29,7 +29,71 @@ local STATE_KEY = {
 	save_path = "save_path",
 	last_hovered_folder = "last_hovered_folder",
 	prefs = "prefs",
+	tasks_write_prefs_running = "tasks_write_prefs_running",
+	tasks_write_prefs = "tasks_write_prefs",
 }
+
+-- Encode binary string to hex (e.g., "\xED" => "\\xED")
+local function hex_encode(s)
+	return (s:gsub(".", function(c)
+		return string.format("\\x%02X", c:byte())
+	end))
+end
+
+-- Decode hex-encoded string (e.g., "\\xED" => "\xED")
+local function hex_decode(s)
+	return (s:gsub("\\x(%x%x)", function(hex)
+		return string.char(tonumber(hex, 16))
+	end))
+end
+
+local function hex_encode_table(t)
+	local out = {}
+	for k, v in pairs(t) do
+		local new_k = type(k) == "string" and hex_encode(k) or k
+		local new_v
+		if type(v) == "table" then
+			new_v = hex_encode_table(v)
+		elseif type(v) == "string" then
+			new_v = hex_encode(v)
+		else
+			new_v = v
+		end
+		out[new_k] = new_v
+	end
+	return out
+end
+
+local function hex_decode_table(t)
+	local out = {}
+	for k, v in pairs(t) do
+		local new_k = type(k) == "string" and hex_decode(k) or k
+		local new_v
+		if type(v) == "table" then
+			new_v = hex_decode_table(v)
+		elseif type(v) == "string" then
+			new_v = hex_decode(v)
+		else
+			new_v = v
+		end
+		out[new_k] = new_v
+	end
+	return out
+end
+
+local enqueue_task = ya.sync(function(state, task_name, task_data)
+	if not state[task_name] or type(state[task_name]) ~= "table" then
+		state[task_name] = {}
+	end
+	table.insert(state[task_name], task_data)
+end)
+
+local dequeue_task = ya.sync(function(state, task_name)
+	if not state[task_name] or type(state[task_name]) ~= "table" then
+		return {}
+	end
+	return table.remove(state[task_name], 1)
+end)
 
 local set_state = ya.sync(function(state, key, value)
 	state[key] = value
@@ -55,7 +119,7 @@ end
 
 ---@enum PUBSUB_KIND
 local PUBSUB_KIND = {
-	prefs_changed = "@" .. PackageName .. "-" .. "prefs-changed",
+	prefs_changed = PackageName .. "-" .. "prefs-changed",
 	disabled = "@" .. PackageName .. "-" .. "disabled",
 }
 
@@ -80,7 +144,7 @@ local read_prefs_from_saved_file = function(pref_path)
 	end
 	local prefs_encoded = file:read("*all")
 	file:close()
-	local prefs = ya.json_decode(prefs_encoded)
+	local prefs = hex_decode_table(ya.json_decode(prefs_encoded))
 	-- NOTE: Temporary fix json_encode not save mixed key properly
 	for _, pref in ipairs(prefs) do
 		if pref.sort ~= nil and type(pref.sort.by) == "string" then
@@ -125,13 +189,19 @@ end
 
 -- Save preferences to files, Exclude predefined preferences in setup({})
 ---comment
----@param opts ?{exclude_cwd?: boolean}
-local save_prefs = function(opts)
+local function save_prefs()
 	if get_state(STATE_KEY.disabled) then
 		return
 	end
 
+	if get_state(STATE_KEY.tasks_write_prefs_running) or #get_state(STATE_KEY.tasks_write_prefs) == 0 then
+		return
+	end
+	set_state(STATE_KEY.tasks_write_prefs_running, true)
+	---@type {exclude_cwd?: boolean}
+	local opts = dequeue_task(STATE_KEY.tasks_write_prefs)
 	local cwd = current_dir()
+
 	--- @type table<{location: string, sort: {[1]?: SORT_BY, reverse?: boolean, dir_first?: boolean, translit?: boolean, sensitive?: boolean }, linemode?: LINEMODE, show_hidden?: boolean, is_predefined?: boolean }>
 	local prefs = get_state(STATE_KEY.prefs)
 	local prefs_predefined = {}
@@ -175,7 +245,7 @@ local save_prefs = function(opts)
 			end
 		end
 
-		local _, err_write = fs.write(save_path, ya.json_encode(prefs_tmp))
+		local _, err_write = fs.write(save_path, ya.json_encode(hex_encode_table(prefs_tmp)))
 		if err_write then
 			fail("Can't write to file: %s", tostring(save_path))
 		end
@@ -187,7 +257,9 @@ local save_prefs = function(opts)
 	end
 	set_state(STATE_KEY.prefs, prefs)
 	-- trigger update to other instances
-	broadcast(PUBSUB_KIND.prefs_changed, prefs)
+	broadcast(PUBSUB_KIND.prefs_changed, hex_encode_table(prefs))
+	set_state(STATE_KEY.tasks_write_prefs_running, false)
+	save_prefs()
 end
 
 -- This function trigger everytime user change cwd
@@ -299,7 +371,8 @@ local reset_pref_cwd = function()
 	end
 	set_state(STATE_KEY.prefs, prefs)
 	change_pref()
-	save_prefs({ exclude_cwd = true })
+	enqueue_task(STATE_KEY.tasks_write_prefs, { exclude_cwd = true })
+	save_prefs()
 end
 
 local reload_prefs_from_file = function()
@@ -318,7 +391,7 @@ local reload_prefs_from_file = function()
 	end
 	set_state(STATE_KEY.prefs, prefs)
 	-- trigger update to other instances
-	broadcast(PUBSUB_KIND.prefs_changed, prefs)
+	broadcast(PUBSUB_KIND.prefs_changed, hex_encode_table(prefs))
 end
 
 function M:is_literal_string(str)
@@ -388,6 +461,7 @@ function M:setup(opts)
 	end)
 
 	ps.sub_remote(PUBSUB_KIND.prefs_changed, function(new_prefs)
+		new_prefs = hex_decode_table(new_prefs)
 		set_state(STATE_KEY.prefs, new_prefs)
 		change_pref()
 	end)
@@ -419,6 +493,7 @@ function M:entry(job)
 		broadcast(PUBSUB_KIND.disabled, true)
 		success(NOTIFY_MSG.TOGGLE, "Disabled")
 	elseif action == "save" then
+		enqueue_task(STATE_KEY.tasks_write_prefs, {})
 		save_prefs()
 	elseif action == "reset" then
 		reset_pref_cwd()
