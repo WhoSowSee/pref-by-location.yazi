@@ -160,6 +160,7 @@ local current_dir = ya.sync(function()
 	return tostring(cx.active.current.cwd)
 end)
 
+-- NOTE: can't use rt.mgr here because the value is not always the latest, unless set entry function as sync
 local current_pref = ya.sync(function()
 	return {
 		sort = {
@@ -265,6 +266,7 @@ end
 -- This function trigger everytime user change cwd
 local change_pref = ya.sync(function()
 	local prefs = get_state(STATE_KEY.prefs)
+
 	local cwd = tostring(cx.active.current.cwd)
 	-- change pref based on location
 	for _, pref in ipairs(prefs) do
@@ -411,7 +413,7 @@ function M:setup(opts)
 	end
 
 	set_state(STATE_KEY.save_path, save_path)
-	-- flag to prevent these predefined prefs is saved to file
+	-- flag to prevent predefined prefs is saved to file
 	for _, pref in ipairs(prefs) do
 		pref.is_predefined = true
 	end
@@ -420,26 +422,30 @@ function M:setup(opts)
 	for idx = #saved_prefs, 1, -1 do
 		table.insert(prefs, 1, saved_prefs[idx])
 	end
+
+	-- Add fallback location from yazi.toml
+	table.insert(prefs, {
+		location = ".*",
+		sort = {
+			rt.mgr.sort_by,
+			reverse = rt.mgr.sort_reverse,
+			dir_first = rt.mgr.sort_dir_first,
+			translit = rt.mgr.sort_translit,
+			sensitive = rt.mgr.sort_sensitive,
+		},
+		linemode = rt.mgr.linemode,
+		show_hidden = rt.mgr.show_hidden,
+		is_predefined = true,
+	})
+	set_state(STATE_KEY.prefs, prefs)
+	set_state(STATE_KEY.loaded, true)
+
 	-- dds subscribe on changed directory
 	ps.sub("cd", function(_)
-		if not get_state(STATE_KEY.loaded) then
-			-- Add fallback location from yazi.toml
-			local current_location_pref = current_pref()
-			table.insert(prefs, {
-				location = ".*",
-				sort = current_location_pref.sort,
-				linemode = current_location_pref.linemode,
-				show_hidden = current_location_pref.show_hidden,
-				is_predefined = true,
-			})
-			set_state(STATE_KEY.prefs, prefs)
-			set_state(STATE_KEY.loaded, true)
-		end
 		if get_state(STATE_KEY.disabled) then
 			return
 		end
 		-- NOTE: Trigger if folder is already loaded
-
 		if cx.active.current.stage then
 			change_pref()
 		end
