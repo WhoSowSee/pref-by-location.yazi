@@ -423,20 +423,22 @@ function M:setup(opts)
 		table.insert(prefs, 1, saved_prefs[idx])
 	end
 
-	-- Add fallback location from yazi.toml
-	table.insert(prefs, {
-		location = ".*",
-		sort = {
-			rt.mgr.sort_by,
-			reverse = rt.mgr.sort_reverse,
-			dir_first = rt.mgr.sort_dir_first,
-			translit = rt.mgr.sort_translit,
-			sensitive = rt.mgr.sort_sensitive,
-		},
-		linemode = rt.mgr.linemode,
-		show_hidden = rt.mgr.show_hidden,
-		is_predefined = true,
-	})
+	if not opts or not opts.disable_fallback_preference then
+		-- Add fallback location from yazi.toml
+		table.insert(prefs, {
+			location = ".*",
+			sort = {
+				rt.mgr.sort_by,
+				reverse = rt.mgr.sort_reverse,
+				dir_first = rt.mgr.sort_dir_first,
+				translit = rt.mgr.sort_translit,
+				sensitive = rt.mgr.sort_sensitive,
+			},
+			linemode = rt.mgr.linemode,
+			show_hidden = rt.mgr.show_hidden,
+			is_predefined = true,
+		})
+	end
 	set_state(STATE_KEY.prefs, prefs)
 	set_state(STATE_KEY.loaded, true)
 

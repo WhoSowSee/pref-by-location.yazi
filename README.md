@@ -4,6 +4,7 @@
 
 - [pref-by-location](#pref-by-location)
   - [Requirements](#requirements)
+  - [Preferences priority](#preferences-priority)
   - [Installation](#installation)
     - [Add setup function in `yazi/init.lua`.](#add-setup-function-in-yaziinitlua)
     - [Add `keymap.toml`](#add-keymaptoml)
@@ -57,6 +58,13 @@ pref_by_location:setup({
 
   -- Hide "enable" and "disable" notifications.
   -- no_notify = false -- true|false (Optional)
+
+  -- Disable the fallback preference.
+  -- This mean if none of the saved or predifined perferences is matched,
+  -- then it won't reset preference to default values in yazi.toml.
+  -- For example, go from folder A to folder B (folder B matchs saved preference to show hidden files) -> show hidden.
+  -- Then move back to folder A -> keep showing hidden files, because the folder A doesn't match any saved or predefined preference.
+  -- disable_fallback_preference = false -- true|false|nil (Optional)
 
   -- You can backup/restore this file. But don't use same file in the different OS.
   -- save_path =  -- full path to save file (Optional)
