@@ -32,8 +32,8 @@ This is a Yazi plugin that save these preferences by location:
 
 This plugin will pick the first matching preference. The order of preferences is:
 
-- Manually saved preferences (using `plugin pref-by-location -- save`)
-- Predefined preferences (in `setup` function)
+- Manually saved preferences (using `plugin pref-by-location -- save`).
+- Predefined preferences (in `setup` function).
 - Default preferences (in `yazi.toml`)
 
 ## Installation
@@ -42,8 +42,6 @@ Install the plugin:
 
 ```sh
 ya pkg add boydaihungst/pref-by-location
-# or
-ya pack -a boydaihungst/pref-by-location
 ```
 
 ### Add setup function in `yazi/init.lua`.
@@ -59,7 +57,7 @@ pref_by_location:setup({
   -- Hide "enable" and "disable" notifications.
   -- no_notify = false -- true|false (Optional)
 
-  -- Disable the fallback preference.
+  -- Disable the fallback/default preference (values in `yazi.toml`).
   -- This mean if none of the saved or predifined perferences is matched,
   -- then it won't reset preference to default values in yazi.toml.
   -- For example, go from folder A to folder B (folder B matchs saved preference to show hidden files) -> show hidden.
@@ -71,7 +69,7 @@ pref_by_location:setup({
   --       - Linux/MacOS: os.getenv("HOME") .. "/.config/yazi/pref-by-location"
   --       - Windows: os.getenv("APPDATA") .. "\\yazi\\config\\pref-by-location"
 
-  -- You don't have to set "prefs". Just use keymaps below work just fine
+  -- This is predefined preferences.
   prefs = { -- (Optional)
     -- location: String | Lua pattern (Required)
     --   - Support literals full path, lua pattern (string.match pattern): https://www.lua.org/pil/20.2.html
